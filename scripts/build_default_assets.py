@@ -1073,12 +1073,14 @@ def main():
             "language": language,
             "duration": 3000,  # Default duration in ms
             "threshold": custom_wake_word_config['threshold'],
+            # Several spellings may be given separated by ';' (e.g. "hey matty;hey marty")
             "commands": [
                 {
-                    "command": custom_wake_word_config['wake_word'],
+                    "command": phrase.strip(),
                     "text": custom_wake_word_config['display'],
                     "action": "wake"
                 }
+                for phrase in custom_wake_word_config['wake_word'].split(';') if phrase.strip()
             ]
         }
         print(f"  custom wake word: {custom_wake_word_config['wake_word']} ({custom_wake_word_config['display']})")

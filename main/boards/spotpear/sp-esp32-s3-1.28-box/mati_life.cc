@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 
 #define TAG "MatiLife"
@@ -46,9 +47,54 @@ const char* ActivityName(MatiLife::Activity a) {
         case MatiLife::Activity::kBored: return "nudzi sie";
         case MatiLife::Activity::kHungry: return "jest glodny";
         case MatiLife::Activity::kMood: return "robi miny";
+        case MatiLife::Activity::kAct: return "cos robi";
     }
     return "?";
 }
+
+// Tabela dodatkowych czynnosci. Wagi liczone w PickAct().
+enum ActId {
+    kActDance = 0,
+    kActSneeze,
+    kActHiccup,
+    kActDaydream,
+    kActStretch,
+    kActRead,
+    kActPeekaboo,
+    kActChaseFly,
+    kActDizzy,
+    kActWhistle,
+    kActMeditate,
+    kActDoze,
+    kActProud,
+    kActCountSheep,
+    kActCurious,
+    kActCount
+};
+
+struct ActDef {
+    const char* emotion;
+    int duration_ms;
+    const char* label;
+};
+
+const ActDef kActs[kActCount] = {
+    {"dance", 6300, "tanczy"},
+    {"sneeze", 2200, "kicha"},
+    {"hiccup", 4200, "ma czkawke"},
+    {"daydream", 6600, "marzy patrzac w gwiazdy"},
+    {"stretch", 2400, "przeciaga sie"},
+    {"read", 9300, "czyta ksiazke"},
+    {"peekaboo", 2700, "bawi sie w a kuku"},
+    {"chase_fly", 4400, "goni muche"},
+    {"dizzy", 2600, "kreci mu sie w glowie"},
+    {"whistle", 3500, "pogwizduje"},
+    {"meditate", 8400, "medytuje"},
+    {"doze", 4000, "przysypia"},
+    {"proud", 2200, "jest z siebie dumny"},
+    {"count_sheep", 6500, "liczy owce"},
+    {"curious", 3100, "cos go zaciekawilo"},
+};
 
 }  // namespace
 
@@ -106,6 +152,20 @@ void MatiLife::Start(Backlight* backlight) {
                     return true;
                 });
 
+    mcp.AddTool("self.mati.do",
+                "Popros Matiego o konkretna czynnosc pokazana na ekranie po zakonczeniu rozmowy. "
+                "action: dance (taniec z muzyka), stretch (gimnastyka), read (czytanie ksiazki), "
+                "peekaboo (a kuku), chase_fly (goni muche), whistle (pogwizdywanie), meditate "
+                "(medytacja), daydream (marzenia pod gwiazdami), count_sheep (liczenie owiec), "
+                "curious (rozglada sie zaciekawiony), proud (dumna mina), sneeze (kichniecie), "
+                "hiccup (czkawka).",
+                PropertyList({Property("action", kPropertyTypeString)}),
+                [this](const PropertyList& props) -> ToolResult {
+                    if (!RequestAct(props["action"].value<std::string>())) {
+                        return std::unexpected(std::string("Nieznana czynnosc"));
+                    }
+                    return true;
+                });
     mcp.AddTool("self.mati.set_chattiness",
                 "Ustaw, jak czesto Mati sam z siebie zagaduje domownikow, gdy sie nudzi: "
                 "0 = nigdy, 1 = rzadko, 2 = normalnie, 3 = czesto.",
@@ -131,8 +191,35 @@ void MatiLife::LoadState() {
     fun_ = s.GetInt("fun", 60);
     affection_ = s.GetInt("aff", 50);
     sounds_enabled_ = s.GetBool("sounds", true);
+    LoadPersonality();
     chattiness_ = std::max(0, std::min(3, (int)s.GetInt("chatty", 2)));
     last_greet_yday_ = s.GetInt("greet", -1);
+}
+
+void MatiLife::LoadPersonality() {
+    Settings s("mati", false);
+    if (s.GetInt("p_cur", -1) < 0) {
+        // Pierwsze uruchomienie: wylosuj charakter
+        Settings w("mati", true);
+        w.SetInt("p_cur", RandRange(35, 85));
+        w.SetInt("p_play", RandRange(35, 85));
+        w.SetInt("p_lazy", RandRange(20, 70));
+        w.SetInt("p_music", RandRange(30, 85));
+        w.SetInt("p_soc", RandRange(35, 85));
+    }
+    Settings r("mati", false);
+    curiosity_ = r.GetInt("p_cur", 60);
+    playfulness_ = r.GetInt("p_play", 60);
+    laziness_ = r.GetInt("p_lazy", 40);
+    musicality_ = r.GetInt("p_music", 60);
+    sociability_ = r.GetInt("p_soc", 60);
+}
+
+void MatiLife::Grow(int& trait, int delta) {
+    // Charakter zmienia sie powoli: zmiana o 1 punkt z szansa delta/10
+    if (static_cast<int>(Rand(10)) < std::abs(delta)) {
+        trait = std::max(5, std::min(95, trait + (delta > 0 ? 1 : -1)));
+    }
 }
 
 void MatiLife::SaveState() {
@@ -141,6 +228,11 @@ void MatiLife::SaveState() {
     s.SetInt("full", static_cast<int>(fullness_));
     s.SetInt("fun", static_cast<int>(fun_));
     s.SetInt("aff", static_cast<int>(affection_));
+    s.SetInt("p_cur", curiosity_);
+    s.SetInt("p_play", playfulness_);
+    s.SetInt("p_lazy", laziness_);
+    s.SetInt("p_music", musicality_);
+    s.SetInt("p_soc", sociability_);
 }
 
 void MatiLife::SetChattiness(int level) {
@@ -150,6 +242,19 @@ void MatiLife::SetChattiness(int level) {
     xSemaphoreGive(mutex_);
     Settings s("mati", true);
     s.SetInt("chatty", level);
+}
+
+bool MatiLife::RequestAct(const std::string& name) {
+    for (int i = 0; i < kActCount; i++) {
+        if (name == kActs[i].emotion) {
+            xSemaphoreTake(mutex_, portMAX_DELAY);
+            pending_act_ = i;
+            if (i == kActDance) Grow(musicality_, 3);
+            xSemaphoreGive(mutex_);
+            return true;
+        }
+    }
+    return false;
 }
 
 void MatiLife::SayNow() {
@@ -217,6 +322,12 @@ bool MatiLife::MaybeSpeak(int64_t now_ms, bool force) {
     }
     if (hour >= 19 && hour < 21 && Rand(2) == 0) {
         Speak("Zbliza sie wieczor. Powiedz cos milego i przytulnego na koniec dnia.", now_ms);
+        return true;
+    }
+    if (recent_acts_[0] >= 0 && Rand(3) == 0) {
+        std::string t = std::string("Przed chwila ") + kActs[recent_acts_[0]].label +
+                        " (Ty, Mati). Opowiedz o tym domownikom zabawnie.";
+        Speak(t, now_ms);
         return true;
     }
     static const char* topics[] = {
@@ -288,15 +399,20 @@ const char* MatiLife::MoodName() const {
 }
 
 std::string MatiLife::GetStatusJson() {
-    char buf[320];
+    char buf[512];
     xSemaphoreTake(mutex_, portMAX_DELAY);
     int h = LocalHour();
     snprintf(buf, sizeof(buf),
              "{\"nastroj\":\"%s\",\"energia\":%d,\"najedzenie\":%d,\"zabawa\":%d,\"czulosc\":%d,"
-             "\"teraz\":\"%s\",\"noc\":%s,\"dzwieki\":%s,\"gadatliwosc\":%d,\"godzina\":%d}",
+             "\"teraz\":\"%s\",\"noc\":%s,\"dzwieki\":%s,\"gadatliwosc\":%d,\"godzina\":%d,"
+             "\"osobowosc\":{\"ciekawosc\":%d,\"zabawowosc\":%d,\"lenistwo\":%d,"
+             "\"muzykalnosc\":%d,\"towarzyskosc\":%d}}",
              MoodName(), (int)energy_, (int)fullness_, (int)fun_, (int)affection_,
-             ActivityName(activity_), IsNight() ? "true" : "false",
-             sounds_enabled_ ? "true" : "false", chattiness_, h);
+             (activity_ == Activity::kAct && act_index_ >= 0) ? kActs[act_index_].label
+                                                               : ActivityName(activity_),
+             IsNight() ? "true" : "false",
+             sounds_enabled_ ? "true" : "false", chattiness_, h, curiosity_, playfulness_,
+             laziness_, musicality_, sociability_);
     xSemaphoreGive(mutex_);
     return buf;
 }
@@ -328,10 +444,16 @@ void MatiLife::Play() {
     energy_ = Clamp(energy_ - 5);
     affection_ = Clamp(affection_ + 4);
     pending_ = Activity::kPlay;
+    Grow(playfulness_, 4);
     xSemaphoreGive(mutex_);
 }
 
-void MatiLife::Sing() { RequestActivity(Activity::kSing); }
+void MatiLife::Sing() {
+    xSemaphoreTake(mutex_, portMAX_DELAY);
+    pending_ = Activity::kSing;
+    Grow(musicality_, 4);
+    xSemaphoreGive(mutex_);
+}
 
 void MatiLife::Sleep() {
     xSemaphoreTake(mutex_, portMAX_DELAY);
@@ -357,6 +479,7 @@ void MatiLife::OnPet() {
     last_interaction_ms_ = NowMs();
     forced_sleep_ = false;
     pending_ = Activity::kPet;
+    Grow(sociability_, 2);
     xSemaphoreGive(mutex_);
 }
 
@@ -462,12 +585,33 @@ void MatiLife::Begin(Activity a, int64_t now_ms, int duration_ms) {
             dur = 3000;
             break;
         }
+        case Activity::kAct:
+            if (act_index_ < 0 || act_index_ >= kActCount) {
+                activity_ = Activity::kNone;
+                return;
+            }
+            emotion = kActs[act_index_].emotion;
+            dur = kActs[act_index_].duration_ms;
+            switch (act_index_) {
+                case kActDance: PlaySound(Lang::Sounds::OGG_MATI_DANCE); break;
+                case kActSneeze: PlaySound(Lang::Sounds::OGG_MATI_SNEEZE); break;
+                case kActHiccup: PlaySound(Lang::Sounds::OGG_MATI_HICCUP); break;
+                case kActStretch: PlaySound(Lang::Sounds::OGG_MATI_STRETCH); break;
+                case kActRead: PlaySound(Lang::Sounds::OGG_MATI_PAGE); break;
+                case kActPeekaboo: PlaySound(Lang::Sounds::OGG_MATI_PEEKABOO); break;
+                case kActDizzy: PlaySound(Lang::Sounds::OGG_MATI_DIZZY); break;
+                case kActWhistle: PlaySound(Lang::Sounds::OGG_MATI_WHISTLE); break;
+                case kActProud: PlaySound(Lang::Sounds::OGG_MATI_PROUD); break;
+                default: break;
+            }
+            break;
         case Activity::kNone:
             dur = 0;
             break;
     }
     activity_end_ms_ = now_ms + dur;
-    ESP_LOGI(TAG, "-> %s (%s, %d ms)", ActivityName(a), emotion, dur);
+    ESP_LOGI(TAG, "-> %s (%s, %d ms)",
+             a == Activity::kAct ? kActs[act_index_].label : ActivityName(a), emotion, dur);
     ShowEmotion(emotion);
     ApplyBrightness();
 }
@@ -481,14 +625,101 @@ void MatiLife::Finish(int64_t now_ms) {
         Begin(Activity::kYawn, now_ms);
         return;
     }
+    if (follow_up_ >= 0) {
+        int next = follow_up_;
+        follow_up_ = -1;
+        BeginAct(next, now_ms);
+        return;
+    }
     ShowEmotion("neutral");
     ApplyBrightness();
     next_event_ms_ = now_ms + RandRange(4000, 12000);
 }
 
+void MatiLife::BeginAct(int index, int64_t now_ms) {
+    act_index_ = index;
+    recent_acts_[2] = recent_acts_[1];
+    recent_acts_[1] = recent_acts_[0];
+    recent_acts_[0] = index;
+    // Skutki uboczne i dalszy ciag niektorych czynnosci
+    switch (index) {
+        case kActDance:
+            fun_ = Clamp(fun_ + 8);
+            energy_ = Clamp(energy_ - 4);
+            if (Rand(3) == 0) follow_up_ = kActDizzy;
+            break;
+        case kActChaseFly:
+            fun_ = Clamp(fun_ + 4);
+            if (Rand(2) == 0) follow_up_ = kActProud;  // zlapal!
+            break;
+        case kActRead:
+            fun_ = Clamp(fun_ + 3);
+            if (energy_ < 60 && Rand(3) == 0) follow_up_ = kActDoze;
+            break;
+        case kActMeditate:
+            energy_ = Clamp(energy_ + 3);
+            break;
+        case kActStretch:
+            energy_ = Clamp(energy_ + 2);
+            break;
+        case kActPeekaboo:
+        case kActWhistle:
+            fun_ = Clamp(fun_ + 4);
+            break;
+        case kActCurious:
+            if (Rand(4) == 0) follow_up_ = kActSneeze;  // za blisko kurzu
+            break;
+        default:
+            break;
+    }
+    Begin(Activity::kAct, now_ms);
+}
+
+int MatiLife::PickAct(int64_t now_ms) {
+    int hour = LocalHour();
+    bool morning = hour >= 7 && hour < 10;
+    bool afternoon = hour >= 14 && hour < 19;
+    bool evening = hour >= 19 && hour < 22;
+    float w[kActCount];
+    w[kActDance] = 6 * (musicality_ + playfulness_) / 100.0f * (afternoon ? 1.5f : 1) *
+                   (energy_ > 40 ? 1 : 0.2f);
+    w[kActSneeze] = 1.2f;
+    w[kActHiccup] = 1.0f + (fullness_ > 85 ? 2 : 0);  // po obzarstwie
+    w[kActDaydream] = 3 * (100 - playfulness_ + curiosity_) / 100.0f * (evening ? 2 : 1);
+    w[kActStretch] = 2 + (morning ? 8 : 0) + (now_ms - last_interaction_ms_ > 30 * 60000 ? 2 : 0);
+    w[kActRead] = 4 * curiosity_ / 100.0f * (evening ? 3 : 1);
+    w[kActPeekaboo] = 4 * (playfulness_ + sociability_) / 200.0f;
+    w[kActChaseFly] = 4 * (playfulness_ + curiosity_) / 200.0f * (energy_ > 30 ? 1 : 0.3f);
+    w[kActDizzy] = 0;  // tylko jako skutek tanca
+    w[kActWhistle] = 4 * musicality_ / 100.0f;
+    w[kActMeditate] = 2 * laziness_ / 100.0f * (evening ? 2 : 1) + (fun_ < 30 ? 0 : 0.5f);
+    w[kActDoze] = 4 * laziness_ / 100.0f * (energy_ < 50 ? 2.5f : 0.6f);
+    w[kActProud] = 1.0f + (affection_ > 75 ? 2 : 0);
+    w[kActCountSheep] = (hour >= 21 && hour < 22) ? 6 : 0;
+    w[kActCurious] = 5 * curiosity_ / 100.0f;
+    for (int r : recent_acts_) {
+        if (r >= 0) w[r] *= 0.1f;  // bez powtorek
+    }
+    float total = 0;
+    for (float x : w) total += x;
+    if (total <= 0) return -1;
+    float pick = (esp_random() / 4294967296.0f) * total;
+    for (int i = 0; i < kActCount; i++) {
+        pick -= w[i];
+        if (pick <= 0) return i;
+    }
+    return kActCurious;
+}
+
 void MatiLife::ChooseNext(int64_t now_ms) {
     // 1. Sen
     bool night_sleep = IsNight() && now_ms - last_interaction_ms_ > 2LL * 60 * 1000;
+    if (night_sleep && !forced_sleep_ && !sheep_counted_) {
+        sheep_counted_ = true;
+        BeginAct(kActCountSheep, now_ms);
+        return;
+    }
+    if (!IsNight()) sheep_counted_ = false;
     if (forced_sleep_ || night_sleep) {
         int64_t dur = 30LL * 60 * 1000;
         Begin(Activity::kNap, now_ms, static_cast<int>(dur));
@@ -497,6 +728,19 @@ void MatiLife::ChooseNext(int64_t now_ms) {
     if (energy_ < 15) {
         Begin(Activity::kNap, now_ms);
         return;
+    }
+    // Obiad miedzy 12 a 14
+    int hour_now = LocalHour();
+    if (hour_now >= 12 && hour_now < 14 && fullness_ < 85) {
+        time_t t = time(nullptr);
+        struct tm tm_local;
+        localtime_r(&t, &tm_local);
+        if (tm_local.tm_yday != lunch_yday_) {
+            lunch_yday_ = tm_local.tm_yday;
+            fullness_ = Clamp(fullness_ + 35);
+            Begin(Activity::kEat, now_ms);
+            return;
+        }
     }
     // 2. Glod: najpierw sie upomina, po 20 min sam znajduje przekaske
     if (fullness_ < 25) {
@@ -538,16 +782,25 @@ void MatiLife::ChooseNext(int64_t now_ms) {
     int hour = LocalHour();
     bool can_sing = now_ms - last_sing_ms_ > 20LL * 60 * 1000 && fun_ > 30 &&
                     (hour < 0 || (hour >= 9 && hour < 21));
-    if (r < 55) {
+    int sing_pct = 3 + musicality_ / 12;          // 3..11 %
+    int play_pct = 3 + playfulness_ / 15;         // 3..9 %
+    if (r < 33) {
         Begin(Activity::kLook, now_ms);
-    } else if (r < 72) {
+    } else if (r < 68) {
+        int act = PickAct(now_ms);
+        if (act >= 0) {
+            BeginAct(act, now_ms);
+        } else {
+            Begin(Activity::kLook, now_ms);
+        }
+    } else if (r < 78) {
         Begin(Activity::kMood, now_ms);
-    } else if (r < 80 && can_sing) {
+    } else if (r < 78 + sing_pct && can_sing) {
         Begin(Activity::kSing, now_ms);
-    } else if (r < 88) {
+    } else if (r < 78 + sing_pct + play_pct) {
         fun_ = Clamp(fun_ + 6);
         Begin(Activity::kPlay, now_ms);
-    } else if (r < 93 && energy_ < 60) {
+    } else if (r < 94 && energy_ < 60 + laziness_ / 4) {
         Begin(Activity::kYawn, now_ms);
     } else {
         // chwila spokoju - neutralne oczy same mrugaja
@@ -599,6 +852,7 @@ void MatiLife::Loop() {
                     ESP_LOGI(TAG, "Przerwano: %s", ActivityName(activity_));
                 }
                 activity_ = Activity::kNone;
+                follow_up_ = -1;
                 forced_sleep_ = false;
                 was_idle_ = false;
                 ApplyBrightness();
@@ -624,6 +878,10 @@ void MatiLife::Loop() {
         if (say_now_) {
             say_now_ = false;
             MaybeSpeak(now, true);
+        } else if (pending_act_ >= 0) {
+            int act = pending_act_;
+            pending_act_ = -1;
+            BeginAct(act, now);
         } else if (pending_ != Activity::kNone) {
             Activity a = pending_;
             pending_ = Activity::kNone;

@@ -30,6 +30,7 @@ public:
         kBored,
         kHungry,
         kMood,       // losowa mina: winking, cool, relaxed...
+        kAct,        // czynnosc z tabeli kActs (taniec, kichanie, czytanie...)
     };
 
     static MatiLife& GetInstance() {
@@ -57,6 +58,8 @@ public:
     void SetChattiness(int level);
     // Natychmiastowa samodzielna wypowiedz (do testow / MCP)
     void SayNow();
+    // Zlec konkretna czynnosc z tabeli (np. "dance"); false gdy nieznana
+    bool RequestAct(const std::string& name);
     bool SoundsEnabled() const { return sounds_enabled_; }
     std::string GetStatusJson();
 
@@ -70,6 +73,10 @@ private:
     void Tick1s();
     void ChooseNext(int64_t now_ms);
     bool MaybeSpeak(int64_t now_ms, bool force);
+    void BeginAct(int index, int64_t now_ms);
+    int PickAct(int64_t now_ms);
+    void LoadPersonality();
+    void Grow(int& trait, int delta);
     void Speak(const std::string& topic, int64_t now_ms);
     void WatchInitiative(int64_t now_ms);
     void Begin(Activity a, int64_t now_ms, int duration_ms = 0);
@@ -115,4 +122,18 @@ private:
     int64_t initiative_listen_since_ms_ = 0;
     int last_greet_yday_ = -1;
     bool say_now_ = false;
+
+    // Osobowosc (0-100), losowana przy pierwszym uruchomieniu i powoli
+    // ksztaltowana przez to, jak domownicy sie z nim obchodza.
+    int curiosity_ = 60;
+    int playfulness_ = 60;
+    int laziness_ = 40;
+    int musicality_ = 60;
+    int sociability_ = 60;
+    int act_index_ = -1;
+    int pending_act_ = -1;
+    int recent_acts_[3] = {-1, -1, -1};
+    int follow_up_ = -1;          // czynnosc, ktora ma nastapic zaraz po obecnej
+    int lunch_yday_ = -1;
+    bool sheep_counted_ = false;
 };

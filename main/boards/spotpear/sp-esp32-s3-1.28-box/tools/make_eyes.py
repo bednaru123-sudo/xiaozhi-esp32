@@ -529,7 +529,264 @@ def a_hungry():
         seq.append((fr, 120))
     return seq
 
+
+# ---------- kolejne czynnosci (osobowosc) ----------
+YEL = (255, 210, 70)
+GRN = (120, 230, 120)
+DEJ = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+
+
+def glyph(fr, s, x, y, size, color, bold=False):
+    m = fr.mask()
+    ImageDraw.Draw(m).text((sc(x), sc(y)), s, font=ImageFont.truetype(FONT if bold else DEJ, sc(size)), fill=255, anchor='mm')
+    fr.add(m, color)
+
+
+def spiral(fr, cx, cy, r, phase, color=CYAN):
+    m = fr.mask(); d = ImageDraw.Draw(m)
+    pts = []
+    for i in range(90):
+        t = i / 89
+        a = phase + t * 4 * math.pi
+        pts.append((sc(cx + r * t * math.cos(a)), sc(cy + r * t * math.sin(a))))
+    d.line(pts, fill=255, width=sc(5), joint='curve')
+    fr.add(m, color)
+
+
+def a_dance():
+    seq = []
+    n = 16
+    for k in range(n):
+        t = k / n
+        dx = 18 * math.sin(2 * math.pi * t)
+        dy = -10 * abs(math.sin(4 * math.pi * t))
+        fr = Frame()
+        pair(fr, dx=dx, dy=dy + 4, arc=True, h=EH * 0.85)
+        nt = (t * 2) % 1
+        glyph(fr, '♪', 20 + 10 * math.sin(6 * t), 130 - 90 * nt, 20, YEL)
+        glyph(fr, '♪', 206 - 10 * math.sin(6 * t), 130 - 90 * ((nt + 0.5) % 1), 20, PINK)
+        seq.append((fr, 70))
+    return seq
+
+
+def a_sneeze():
+    seq = []
+    for f in (1.0, 0.9, 0.8, 0.7, 0.75, 0.65):            # nabieranie powietrza
+        fr = Frame(); pair(fr, dy=-6 * (1 - f), h=EH * f, lid=(1 - f, 1 - f)); seq.append((fr, 110))
+    fr = Frame(); line_eye(fr, LX, CY, bend=-10); line_eye(fr, RX, CY, bend=-10); seq.append((fr, 160))
+    for k in range(5):                                      # APSIK!
+        fr = Frame()
+        chevron(fr, LX + (k % 2) * 3, CY, 40, True); chevron(fr, RX - (k % 2) * 3, CY, 40, False)
+        glyph(fr, 'APSIK!', 113, 132, 18 + k, WHITE, bold=True)
+        seq.append((fr, 70))
+    fr = Frame(); pair(fr, h=EH * 0.8, w=EW * 0.9); seq.append((fr, 400))
+    seq += blink_seq(lambda fr, h: pair(fr, h=h))
+    fr = Frame(); pair(fr); seq.append((fr, 500))
+    return seq
+
+
+def a_hiccup():
+    seq = []
+    for rep in range(3):
+        fr = Frame(); pair(fr); seq.append((fr, 500))
+        for k, dy in enumerate((-14, -18, -10, -4)):
+            fr = Frame(); pair(fr, dy=dy, w=EW * 1.05, h=EH * 0.95)
+            if k < 3:
+                glyph(fr, 'hik!', 196, 30 + dy, 16, WHITE, bold=True)
+            seq.append((fr, 50))
+    return seq
+
+
+def a_daydream():
+    seq = []
+    n = 20
+    for k in range(n):
+        t = k / n
+        fr = Frame()
+        pair(fr, dx=-10, dy=-16, h=EH * 0.75, lid=(0.3, 0.3))
+        for i, (x, y) in enumerate(((150, 22), (186, 16), (210, 34), (24, 18))):
+            tw = 0.5 + 0.5 * math.sin(2 * math.pi * (t + i * 0.27))
+            star(fr, x, y, 3 + 4 * tw, YEL)
+        blob(fr, 70 + 6 * math.sin(2 * math.pi * t), 20, 18, 8, (90, 110, 140))
+        seq.append((fr, 110))
+    return seq
+
+
+def a_stretch():
+    seq = []
+    shapes = [(1, 1), (0.8, 1.25), (0.7, 1.35), (0.75, 1.3), (1.2, 0.7), (1.35, 0.55), (1.25, 0.65), (1, 1)]
+    for sx, sy in shapes:
+        for _ in range(2):
+            fr = Frame(); pair(fr, w=EW * sx, h=EH * sy, r=ER * min(sx, sy)); seq.append((fr, 110))
+    fr = Frame(); pair(fr, arc=True, h=EH * 0.85, dy=4); seq.append((fr, 600))
+    return seq
+
+
+def a_read():
+    seq = []
+    for line in range(3):
+        for k in range(8):
+            dx = -16 + 32 * k / 7
+            fr = Frame()
+            pair(fr, dx=dx, dy=10 + line * 3, h=EH * 0.7, lid=(0.25, 0.25))
+            m = fr.mask(); d = ImageDraw.Draw(m)       # ksiazka
+            d.polygon([(sc(70), sc(118)), (sc(112), sc(126)), (sc(112), sc(148)), (sc(70), sc(140))], fill=255)
+            d.polygon([(sc(156), sc(118)), (sc(114), sc(126)), (sc(114), sc(148)), (sc(156), sc(140))], fill=255)
+            fr.add(m, (230, 230, 210))
+            seq.append((fr, 120))
+        fr = Frame(); pair(fr, dx=-16, dy=10 + line * 3, h=EH * 0.7, lid=(0.25, 0.25)); seq.append((fr, 80))
+    return seq
+
+
+def a_peekaboo():
+    seq = []
+    for k in range(1, 9):                          # chowa sie w dol
+        fr = Frame(); pair(fr, dy=90 * ease(k / 8)); seq.append((fr, 45))
+    fr = Frame(); seq.append((fr, 700))
+    for k in range(1, 6):                          # wychyla sie z boku
+        fr = Frame(); eye(fr, -40 + 60 * ease(k / 5), CY + 10, h=EH * 0.8); seq.append((fr, 60))
+    fr = Frame(); eye(fr, 20, CY + 10, h=EH * 0.8); seq.append((fr, 500))
+    for k in range(1, 9):                          # A KUKU!
+        fr = Frame(); pair(fr, dy=90 * (1 - ease(k / 8)), w=EW * 1.1, h=EH * 1.1, r=30); seq.append((fr, 40))
+    for k in range(6):
+        fr = Frame(); pair(fr, arc=True, h=EH * 0.9, dy=4 - 4 * abs(math.sin(k))); glyph(fr, 'a kuku!', 113, 136, 18, YEL, bold=True); seq.append((fr, 90))
+    return seq
+
+
+def a_chase_fly():
+    seq = []
+    n = 24
+    for k in range(n):
+        t = k / n
+        fx = 113 + 80 * math.sin(2 * math.pi * t * 1.5) * math.cos(2 * math.pi * t * 0.5)
+        fy = 70 + 45 * math.sin(2 * math.pi * t * 2.3)
+        if k > n - 5:   # mucha siada na nosie -> zez
+            fx, fy = 113, 120
+        fr = Frame()
+        if k > n - 5:
+            eye(fr, LX + 14, CY + 6, h=EH * 0.85); eye(fr, RX - 14, CY + 6, h=EH * 0.85)
+        else:
+            pair(fr, dx=(fx - 113) * 0.15, dy=(fy - 76) * 0.2, h=EH * 0.9)
+        blob(fr, fx, fy, 3.5, 3.5, (200, 200, 200))
+        wing = 3 + 2 * (k % 2)
+        blob(fr, fx - 3, fy - 4, wing, 2, (140, 160, 200)); blob(fr, fx + 3, fy - 4, wing, 2, (140, 160, 200))
+        seq.append((fr, 70 if k <= n - 5 else 200))
+    return seq
+
+
+def a_dizzy():
+    seq = []
+    for k in range(16):
+        ph = k * 0.6
+        fr = Frame()
+        spiral(fr, LX, CY, 32, ph); spiral(fr, RX, CY, 32, ph + 1)
+        for i in range(3):
+            a = ph * 0.7 + i * 2.1
+            star(fr, 113 + 60 * math.cos(a), 20 + 10 * math.sin(a), 5, YEL)
+        seq.append((fr, 80))
+    return seq
+
+
+def a_whistle():
+    seq = []
+    for k in range(16):
+        t = k / 16
+        fr = Frame()
+        pair(fr, dx=10, dy=-4, h=EH * 0.8, lid=(0.35, 0.2))
+        blob(fr, 150, 128, 5, 5, CYAN)
+        nt = t
+        glyph(fr, '♪', 170 + 30 * nt, 120 - 70 * nt, 14 + 6 * nt, tuple(int(c * (1 - nt * 0.7)) for c in YEL))
+        seq.append((fr, 110))
+    return seq
+
+
+def a_meditate():
+    seq = []
+    for k in range(20):
+        t = k / 20
+        b = math.sin(2 * math.pi * t)
+        fr = Frame()
+        line_eye(fr, LX, CY + 8 - 3 * b, bend=-6); line_eye(fr, RX, CY + 8 - 3 * b, bend=-6)
+        m = fr.mask()
+        ImageDraw.Draw(m).ellipse([sc(113 - 50 - 6 * b), sc(76 - 50 - 6 * b), sc(113 + 50 + 6 * b), sc(76 + 50 + 6 * b)], outline=255, width=sc(2))
+        fr.add(m, tuple(int(c * (0.35 + 0.2 * b)) for c in (150, 120, 255)))
+        if 0.3 < t < 0.7:
+            glyph(fr, 'ommm', 113, 140, 14, (170, 150, 255))
+        seq.append((fr, 140))
+    return seq
+
+
+def a_doze():
+    seq = []
+    for rep in range(2):
+        for k in range(8):                       # powieki powoli opadaja
+            f = 0.3 + 0.65 * ease(k / 7)
+            fr = Frame(); pair(fr, dy=6 + 4 * f, h=EH * 0.8, lid=(f, f)); seq.append((fr, 130))
+        fr = Frame(); line_eye(fr, LX, CY + 16, bend=-6); line_eye(fr, RX, CY + 16, bend=-6); seq.append((fr, 500))
+        fr = Frame(); pair(fr, w=EW * 1.1, h=EH * 1.1, r=30, dy=-4); seq.append((fr, 120))  # ocknal sie!
+        fr = Frame(); pair(fr); seq.append((fr, 350))
+    return seq
+
+
+def a_proud():
+    seq = []
+    for k in range(12):
+        t = k / 12
+        fr = Frame()
+        pair(fr, dy=-6, h=EH * 0.85, lid=(0.15, 0.15))
+        s1 = 3 + 5 * abs(math.sin(math.pi * t * 2))
+        star(fr, LX + 22, CY - 30, s1, WHITE); star(fr, RX + 22, CY - 30, 8 - s1 + 3, WHITE)
+        seq.append((fr, 90))
+    return seq
+
+
+def sheep(fr, cx, cy):
+    for ox, oy in ((-8, 0), (0, -4), (8, 0), (0, 3), (-4, -2), (4, -2)):
+        blob(fr, cx + ox, cy + oy, 8, 7, WHITE)
+    blob(fr, cx + 14, cy - 2, 5, 4, (90, 90, 100))
+    m = fr.mask(); d = ImageDraw.Draw(m)
+    for lx in (-7, 7):
+        d.rectangle([sc(cx + lx - 1.5), sc(cy + 8), sc(cx + lx + 1.5), sc(cy + 15)], fill=255)
+    fr.add(m, (90, 90, 100))
+
+
+def a_count_sheep():
+    seq = []
+    n = 24
+    for k in range(n):
+        t = k / n
+        fr = Frame()
+        pair(fr, dy=-22, h=EH * 0.55, w=EW * 0.8, lid=(0.55 + 0.15 * t, 0.55 + 0.15 * t))
+        m = fr.mask(); ImageDraw.Draw(m).rectangle([sc(106), sc(130), sc(120), sc(150)], fill=255); fr.add(m, (120, 80, 50))  # plotek
+        x = -20 + 266 * ((t * 2) % 1)
+        y = 132 - 26 * math.sin(math.pi * ((t * 2) % 1))
+        sheep(fr, x, y)
+        glyph(fr, str(1 + int(t * 2)), 206, 22, 18, WHITE, bold=True)
+        seq.append((fr, 90))
+    return seq
+
+
+def a_curious():
+    seq = []
+    pts = [(-20, -10), (20, -12), (14, 12), (-16, 10), (0, 0)]
+    cur = (0, 0)
+    for tx, ty in pts:
+        for k in range(1, 5):
+            e = ease(k / 4)
+            dx = cur[0] + (tx - cur[0]) * e; dy = cur[1] + (ty - cur[1]) * e
+            fr = Frame(); eye(fr, LX + dx, CY + dy, h=EH * 0.95); eye(fr, RX + dx, CY + dy, h=EH * 0.8, lid=(0.2, 0.2)); seq.append((fr, 40))
+        fr = Frame(); eye(fr, LX + tx, CY + ty, h=EH * 0.95); eye(fr, RX + tx, CY + ty, h=EH * 0.8, lid=(0.2, 0.2))
+        glyph(fr, '?', 206, 24, 22, YEL, bold=True)
+        seq.append((fr, 450))
+        cur = (tx, ty)
+    return seq
+
 ANIMS = {
+    'dance': a_dance, 'sneeze': a_sneeze, 'hiccup': a_hiccup, 'daydream': a_daydream,
+    'stretch': a_stretch, 'read': a_read, 'peekaboo': a_peekaboo, 'chase_fly': a_chase_fly,
+    'dizzy': a_dizzy, 'whistle': a_whistle, 'meditate': a_meditate, 'doze': a_doze,
+    'proud': a_proud, 'count_sheep': a_count_sheep, 'curious': a_curious,
+
     'look_left': lambda: look(-26, 0), 'look_right': lambda: look(26, 0),
     'look_up': lambda: look(0, -18, squint=None), 'look_down': lambda: look(0, 14),
     'yawn': a_yawn, 'nap': a_nap, 'eat': a_eat, 'play': a_play, 'sing': a_sing,
@@ -555,6 +812,10 @@ def save_gif(name, seq):
 
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
+    import sys
+    only = set(sys.argv[1:])
     for name, fn in ANIMS.items():
+        if only and name not in only:
+            continue
         path, frames = save_gif(name, fn())
         print(f'{name:12} {len(frames):3} klatek {os.path.getsize(path) // 1024:4} KB')

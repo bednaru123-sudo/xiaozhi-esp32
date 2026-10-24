@@ -6,6 +6,7 @@
 #include "backlight.h"
 #include "board.h"
 #include "display/display.h"
+#include "mati_memory.h"
 #include "mcp_server.h"
 #include "settings.h"
 
@@ -180,6 +181,7 @@ void MatiLife::Start(Backlight* backlight) {
     mutex_ = xSemaphoreCreateMutex();
     LoadState();
     RegisterTools();
+    MatiMemory::GetInstance().Start();
     xTaskCreate(TaskEntry, "mati_life", 4096, this, 2, nullptr);
     ESP_LOGI(TAG, "Mati ozyl: energia %.0f, najedzenie %.0f, zabawa %.0f", energy_, fullness_, fun_);
 }
@@ -494,6 +496,23 @@ bool MatiLife::MaybeSpeak(int64_t now_ms, bool force) {
               now_ms);
         return true;
     }
+    // Uczenie sie domownikow: wykorzystaj to, co wiesz, albo dopytaj o cos nowego
+    int known = MatiMemory::GetInstance().Count();
+    if (known > 0 && Rand(100) < 35) {
+        std::string fact = MatiMemory::GetInstance().RandomFact();
+        Speak("Pamietasz o domownikach: " + fact +
+                  ". Nawiaz do tego naturalnie: zapytaj o to, zaproponuj cos z tym zwiazanego "
+                  "albo pochwal sie, ze pamietasz.",
+              now_ms);
+        return true;
+    }
+    if (Rand(100) < (known < 10 ? 40 : 15)) {
+        Speak("Chcesz lepiej poznac domownikow. Zadaj jedno ciekawe pytanie o ich upodobania, "
+              "hobby, ulubione jedzenie, muzyke albo plany i zapamietaj odpowiedz narzedziem "
+              "self.mati.memory.remember.",
+              now_ms);
+        return true;
+    }
     if (recent_acts_[0] >= 0 && Rand(3) == 0) {
         std::string t = std::string("Przed chwila ") + kActs[recent_acts_[0]].label +
                         " (Ty, Mati). Opowiedz o tym domownikom zabawnie.";
@@ -638,13 +657,14 @@ std::string MatiLife::GetStatusJson() {
              "\"godzina\":%d,\"dzis_zrobione\":\"%s\","
              "\"osobowosc\":{\"ciekawosc\":%d,\"zabawowosc\":%d,\"lenistwo\":%d,"
              "\"muzykalnosc\":%d,\"towarzyskosc\":%d},"
-             "\"rekordy\":{\"refleks_ms\":%d,\"stukniecia_5s\":%d}}",
+             "\"rekordy\":{\"refleks_ms\":%d,\"stukniecia_5s\":%d},\"faktow_w_pamieci\":%d}",
              MoodName(), (int)energy_, (int)fullness_, (int)fun_, (int)affection_,
              (activity_ == Activity::kAct && act_index_ >= 0) ? kActs[act_index_].label
                                                                : ActivityName(activity_),
              IsNight() ? "true" : "false", IsWeekend() ? "true" : "false",
              sounds_enabled_ ? "true" : "false", chattiness_, h, eaten.c_str(), curiosity_,
-             playfulness_, laziness_, musicality_, sociability_, best_reaction_ms_, best_taps_);
+             playfulness_, laziness_, musicality_, sociability_, best_reaction_ms_, best_taps_,
+             MatiMemory::GetInstance().Count());
     xSemaphoreGive(mutex_);
     return buf;
 }

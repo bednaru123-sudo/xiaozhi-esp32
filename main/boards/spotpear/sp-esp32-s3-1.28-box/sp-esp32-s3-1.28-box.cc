@@ -166,8 +166,9 @@ private:
         rtc_gpio_set_direction(GPIO_NUM_3, RTC_GPIO_MODE_OUTPUT_ONLY);
         rtc_gpio_set_level(GPIO_NUM_3, 1);
         // Mati nie usypia ekranu ani nie wylacza sie - sam decyduje, kiedy drzemac
-        // (przyciemnia wtedy ekran). Czas lokalny: Polska.
-        setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
+        // (przyciemnia wtedy ekran). Serwer Xiaozhi ustawia zegar juz w czasie
+        // lokalnym (dolicza strefe z konsoli), wiec tutaj nie dodajemy strefy.
+        setenv("TZ", "UTC0", 1);
         tzset();
     }
 

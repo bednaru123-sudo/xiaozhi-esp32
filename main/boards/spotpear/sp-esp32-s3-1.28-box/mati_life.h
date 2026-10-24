@@ -18,6 +18,8 @@ class Backlight;
 
 class MatiLife {
 public:
+    static constexpr int kMaxActs = 96;
+
     enum class Activity : uint8_t {
         kNone = 0,   // neutralne oczy (same mrugaja i zerkaja)
         kLook,
@@ -163,6 +165,8 @@ private:
     int act_index_ = -1;
     int pending_act_ = -1;
     int recent_acts_[3] = {-1, -1, -1};
+    int64_t last_done_ms_[kMaxActs] = {};  // kiedy ostatnio (0 = jeszcze nigdy)
+    uint16_t done_count_[kMaxActs] = {};
     int follow_up_ = -1;          // czynnosc, ktora ma nastapic zaraz po obecnej
 
     // Rytm dnia

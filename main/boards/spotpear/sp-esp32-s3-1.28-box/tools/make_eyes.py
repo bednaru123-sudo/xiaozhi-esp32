@@ -1134,7 +1134,594 @@ def a_party():
         seq.append((fr, 90))
     return seq
 
+
+# ---------- pakiet 4: hobby i drobne przygody ----------
+SKY = (120, 180, 255)
+PURPLE = (170, 120, 255)
+
+
+def look_at(fr, tx, ty, h=EH * 0.85, w=EW, **kw):
+    pair(fr, dx=(tx - 113) * 0.12, dy=(ty - 76) * 0.15, h=h, w=w, **kw)
+
+
+def a_juggle():
+    seq = []
+    cols = [RED2, YEL, GRN]
+    for k in range(18):
+        t = k / 18
+        fr = Frame()
+        pair(fr, dy=-14, h=EH * 0.6, w=EW * 0.85)
+        for i in range(3):
+            p = (t + i / 3) % 1
+            x = 70 + 86 * p if p < 0.5 else 156 - 86 * (p - 0.5) * 2 * 0.5 * 2
+            x = 70 + 86 * (2 * p if p < 0.5 else 2 - 2 * p)
+            y = 140 - 70 * math.sin(math.pi * (2 * p % 1))
+            blob(fr, x, y, 8, 8, cols[i])
+        seq.append((fr, 70))
+    return seq
+
+
+def a_bubbles():
+    seq = []
+    for k in range(18):
+        t = k / 18
+        fr = Frame()
+        pair(fr, dx=-10, dy=-10, h=EH * 0.7, lid=(0.25, 0.25))
+        blob(fr, 120, 128, 4, 4, PINK)
+        for i in range(4):
+            p = (t + i / 4) % 1
+            r = 4 + 12 * p
+            x = 130 + 70 * p + 8 * math.sin(6 * p + i)
+            y = 124 - 100 * p
+            m = fr.mask(); ImageDraw.Draw(m).ellipse([sc(x - r), sc(y - r), sc(x + r), sc(y + r)], outline=255, width=sc(2)); fr.add(m, tuple(int(c * (1 - p * 0.6)) for c in SKY))
+        seq.append((fr, 90))
+    return seq
+
+
+def a_paint():
+    seq = []
+    cols = [RED2, YEL, SKY, GRN]
+    for k in range(20):
+        t = k / 20
+        fr = Frame()
+        look_at(fr, 113, 130, lid=(0.2, 0.2))
+        rrect(fr, 70, 112, 156, 150, 3, (235, 230, 215))
+        n = int(t * 4) + 1
+        for i in range(n):
+            poly(fr, [(76, 120 + i * 8), (76 + (78 if i < n - 1 else 78 * ((t * 4) % 1)), 120 + i * 8)], cols[i], width=5)
+        bx = 76 + 78 * ((t * 4) % 1); by = 120 + (n - 1) * 8
+        poly(fr, [(bx, by), (bx + 18, by - 26)], BROWN, width=3)
+        seq.append((fr, 90))
+    return seq
+
+
+def a_guitar():
+    seq = []
+    for k in range(16):
+        t = k / 16
+        fr = Frame()
+        sway = 6 * math.sin(2 * math.pi * t)
+        line_eye(fr, LX + sway, CY - 8, bend=12); line_eye(fr, RX + sway, CY - 8, bend=12)
+        blob(fr, 100, 128, 22, 16, (200, 120, 50)); blob(fr, 100, 128, 6, 6, (60, 30, 10))
+        poly(fr, [(118, 122), (180, 104)], (150, 90, 40), width=6)
+        for i in range(3):
+            v = 1.5 * math.sin(k * 3 + i) if k % 2 else 0
+            poly(fr, [(84, 124 + i * 3 + v), (180, 102 + i * 3)], (230, 230, 230), width=1)
+        glyph(fr, '♪', 200, 60 - 30 * ((t * 2) % 1), 18, YEL)
+        seq.append((fr, 90))
+    return seq
+
+
+def a_drums():
+    seq = []
+    for k in range(16):
+        hit = k % 2
+        fr = Frame()
+        pair(fr, dy=-14 + 4 * hit, h=EH * 0.65, w=EW * 0.85, lid=(0.3, 0.3))
+        blob(fr, 80, 136, 24, 8, RED2); blob(fr, 146, 136, 24, 8, SKY)
+        a = -0.6 if hit else -1.0
+        for x, s in ((80, 1), (146, -1)):
+            poly(fr, [(x + s * 20, 136 - 34 - (0 if hit else 10)), (x + s * 2, 132 - (0 if hit else 14))], (230, 200, 150), width=3)
+        if hit:
+            star(fr, 80 if k % 4 == 1 else 146, 118, 7, WHITE)
+        seq.append((fr, 90))
+    return seq
+
+
+def a_cook():
+    seq = []
+    for k in range(18):
+        t = k / 18
+        fr = Frame()
+        look_at(fr, 113, 140, h=EH * 0.7)
+        poly(fr, [(150, 138), (190, 128)], (80, 80, 90), width=5)
+        m = fr.mask(); ImageDraw.Draw(m).chord([sc(70), sc(118), sc(156), sc(158)], 0, 180, fill=255); fr.add(m, (90, 90, 100))
+        jump = 16 * abs(math.sin(math.pi * t * 2)) if 0.3 < t < 0.8 else 0
+        blob(fr, 113, 136 - jump, 16, 6, WHITE); blob(fr, 113, 135 - jump, 6, 5, (255, 200, 40))
+        steam(fr, 113, 122, t)
+        seq.append((fr, 90))
+    return seq
+
+
+def a_selfie():
+    seq = []
+    for k in range(14):
+        fr = Frame()
+        if k in (8, 9):
+            m = fr.mask(); ImageDraw.Draw(m).rectangle([0, 0, sc(W), sc(H)], fill=255); fr.add(m, (255, 255, 255))
+            seq.append((fr, 60))
+            continue
+        if k < 8:
+            pair(fr, dx=-8, dy=-4, h=EH * 0.85, lid=(0.15, 0.15))
+            rrect(fr, 150, 88, 196, 146, 6, (60, 60, 70)); blob(fr, 173, 104, 8, 8, SKY)
+            glyph(fr, str(3 - k // 3) if k < 8 else '', 173, 132, 14, WHITE, bold=True)
+        else:
+            pair(fr, arc=True, h=EH * 0.85, dy=4)
+            star(fr, 30, 30, 6, YEL); star(fr, 196, 36, 5, YEL)
+        seq.append((fr, 300 if k < 8 else 160))
+    return seq
+
+
+def a_spy():
+    seq = []
+    for k in range(16):
+        dx = 22 * math.sin(math.pi * k / 8)
+        fr = Frame()
+        pair(fr, dx=dx, h=EH * 0.35, w=EW * 1.05, r=10, dy=6)
+        rrect(fr, 30 + dx, 52, 196 + dx, 70, 6, (40, 40, 50))
+        glyph(fr, 'psst...', 113, 136, 14, (150, 150, 160))
+        seq.append((fr, 130))
+    return seq
+
+
+def a_boo():
+    seq = []
+    for k in range(18):
+        fr = Frame()
+        if k < 8:
+            x = -40 + 150 * ease(k / 7)
+            m = fr.mask(); d = ImageDraw.Draw(m)
+            d.ellipse([sc(x - 30), sc(30), sc(x + 30), sc(90)], fill=255); d.rectangle([sc(x - 30), sc(60), sc(x + 30), sc(120)], fill=255)
+            fr.add(m, (230, 230, 240))
+            blob(fr, x - 10, 58, 5, 7, (20, 20, 30)); blob(fr, x + 10, 58, 5, 7, (20, 20, 30))
+            pair(fr, dx=40, w=EW * 0.7, h=EH * 0.7)
+        elif k < 12:
+            pair(fr, w=EW * 1.15, h=EH * 1.2, r=32, dy=-4)
+            glyph(fr, 'BU!', 113, 136, 24, WHITE, bold=True)
+        else:
+            line_eye(fr, LX, CY, bend=16); line_eye(fr, RX, CY, bend=16)
+            glyph(fr, 'haha', 113, 136, 16, YEL, bold=True)
+        seq.append((fr, 80))
+    return seq
+
+
+def a_glitch():
+    seq = []
+    for k in range(14):
+        fr = Frame()
+        if k % 3 == 1:
+            for i in range(5):
+                y = 20 + i * 24 + (k * 7 % 10)
+                rrect(fr, 30 + (k * 13 + i * 29) % 60, y, 120 + (k * 17 + i * 11) % 80, y + 8, 1, [CYAN, PINK, GRN][i % 3])
+        else:
+            off = (k % 4) * 6 - 9
+            eye(fr, LX + off, CY, h=EH * 0.9, color=PINK); eye(fr, RX - off, CY, h=EH * 0.9, color=GRN)
+            pair(fr, h=EH * 0.9)
+        seq.append((fr, 70 if k % 3 == 1 else 110))
+    return seq
+
+
+def a_gum():
+    seq = []
+    for k in range(16):
+        fr = Frame()
+        pair(fr, dy=-14, h=EH * 0.55, w=EW * 0.85, lid=(0.15, 0.15))
+        if k < 13:
+            r = 6 + 2.4 * k
+            blob(fr, 113, 130 - r * 0.2, r, r * 0.9, PINK)
+            blob(fr, 113 - r * 0.4, 124 - r * 0.5, r * 0.15, r * 0.1, (255, 200, 230))
+        else:
+            for i in range(6):
+                a = i * 1.05
+                blob(fr, 113 + 30 * math.cos(a), 124 + 24 * math.sin(a), 5, 3, PINK)
+            glyph(fr, 'PYK!', 196, 30, 14, WHITE, bold=True)
+        seq.append((fr, 110))
+    return seq
+
+
+def a_magic():
+    seq = []
+    for k in range(18):
+        t = k / 18
+        fr = Frame()
+        pair(fr, dy=-12, h=EH * 0.75, lid=(0.2, 0.05))
+        a = -0.4 + 0.6 * math.sin(math.pi * t * 3)
+        poly(fr, [(150, 140), (150 + 40 * math.cos(a - 1.2), 140 - 40 * math.sin(1.2 - a))], (40, 40, 40), width=5)
+        tip = (150 + 40 * math.cos(a - 1.2), 140 - 40 * math.sin(1.2 - a))
+        for i in range(5):
+            p = (t * 2 + i / 5) % 1
+            star(fr, tip[0] - 60 * p * (i % 2 * 2 - 1) * 0.6, tip[1] - 30 * p + 40 * p * p, 5 * (1 - p) + 1, [YEL, PINK, SKY, GRN, WHITE][i])
+        if t > 0.6:
+            blob(fr, 70, 132, 14, 10, WHITE); blob(fr, 64, 116, 3, 9, WHITE); blob(fr, 74, 116, 3, 9, WHITE)
+        seq.append((fr, 90))
+    return seq
+
+
+def a_typing():
+    seq = []
+    for k in range(18):
+        fr = Frame()
+        pair(fr, dx=-12 + (k % 6) * 5, dy=-20, h=EH * 0.5, w=EW * 0.85, lid=(0.15, 0.15))
+        rrect(fr, 62, 96, 164, 140, 4, (60, 60, 75))
+        rrect(fr, 66, 100, 160, 136, 2, (20, 30, 40))
+        for i in range(min(4, k // 4 + 1)):
+            ln = 20 + (i * 37 + k * 7) % 60 if i == k // 4 else 20 + (i * 37) % 60
+            poly(fr, [(72, 106 + i * 8), (72 + ln, 106 + i * 8)], GRN, width=2)
+        rrect(fr, 56, 142, 170, 150, 2, (120, 120, 130))
+        seq.append((fr, 90))
+    return seq
+
+
+def a_bird():
+    seq = []
+    for k in range(20):
+        t = k / 20
+        fr = Frame()
+        if t < 0.35:
+            bx, by = 240 - 140 * ease(t / 0.35), 20 + 30 * ease(t / 0.35)
+        elif t < 0.75:
+            bx, by = 100, 50
+        else:
+            bx, by = 100 - 140 * ease((t - 0.75) / 0.25), 50 - 40 * ease((t - 0.75) / 0.25)
+        look_at(fr, bx, by, h=EH * 0.8)
+        blob(fr, bx, by, 9, 7, SKY); blob(fr, bx - 7, by - 5, 5, 5, SKY)
+        poly(fr, [(bx - 12, by - 5), (bx - 17, by - 3), (bx - 12, by - 2)], ORANGE)
+        wing = 6 * math.sin(k * 2) if (t < 0.35 or t > 0.75) else 0
+        blob(fr, bx + 2, by - 2 - wing, 6, 3, (80, 140, 230))
+        if 0.4 < t < 0.7 and k % 2:
+            glyph(fr, '♪', bx + 16, by - 18, 14, YEL)
+        seq.append((fr, 100))
+    return seq
+
+
+def a_balloon():
+    seq = []
+    for k in range(20):
+        t = k / 20
+        fr = Frame()
+        y = 110 - 140 * ease(max(0, t - 0.3) / 0.7)
+        look_at(fr, 150, y, h=EH * (0.85 if t < 0.5 else 0.7), lid=None if t < 0.6 else (0.05, 0.4))
+        blob(fr, 150, y, 16, 20, RED2)
+        poly(fr, [(150, y + 20), (146 + 4 * math.sin(k), y + 50)], (200, 200, 200), width=1)
+        seq.append((fr, 100))
+    return seq
+
+
+def a_rubik():
+    seq = []
+    cols = [RED2, GRN, SKY, YEL, ORANGE, WHITE]
+    for k in range(16):
+        fr = Frame()
+        look_at(fr, 113, 130, h=EH * 0.7, lid=(0.3, 0.3))
+        solved = k >= 13
+        for i in range(3):
+            for j in range(3):
+                c = cols[0] if solved else cols[(i * 3 + j + k * (j + 1)) % 6]
+                rrect(fr, 89 + i * 16, 104 + j * 16, 103 + i * 16, 118 + j * 16, 2, c)
+        if solved:
+            star(fr, 160, 100, 7, WHITE); star(fr, 70, 110, 5, YEL)
+        seq.append((fr, 140 if not solved else 200))
+    return seq
+
+
+def a_rain():
+    seq = []
+    for k in range(18):
+        t = k / 18
+        fr = Frame()
+        umbrella = t > 0.45
+        if umbrella:
+            pair(fr, arc=True, h=EH * 0.65, dy=10, w=EW * 0.85)
+            m = fr.mask(); ImageDraw.Draw(m).chord([sc(40), sc(4), sc(186), sc(70)], 180, 360, fill=255); fr.add(m, PINK)
+            poly(fr, [(113, 38), (113, 66)], (200, 200, 200), width=2)
+        else:
+            eye(fr, LX, CY + 10, h=EH * 0.6, lid=(0.5, 0.05)); eye(fr, RX, CY + 10, h=EH * 0.6, lid=(0.05, 0.5))
+        for i in range(10):
+            x = (i * 23 + k * 5) % 226
+            y = (i * 37 + k * 18) % 150
+            if umbrella and 40 < x < 186 and y < 80:
+                continue
+            poly(fr, [(x, y), (x - 2, y + 7)], SKY, width=2)
+        seq.append((fr, 90))
+    return seq
+
+
+def a_snow():
+    seq = []
+    for k in range(18):
+        fr = Frame()
+        pair(fr, dy=-6, h=EH * 0.9, w=EW * 1.0, r=26)
+        for i in range(9):
+            x = (i * 29 + 6 * math.sin(k * 0.5 + i)) % 226
+            y = (i * 19 + k * 8) % 150
+            star(fr, x, y, 3 + (i % 3), WHITE)
+        seq.append((fr, 110))
+    return seq
+
+
+def a_kite():
+    seq = []
+    for k in range(18):
+        t = k / 18
+        kx = 160 + 30 * math.sin(2 * math.pi * t); ky = 30 + 12 * math.sin(4 * math.pi * t)
+        fr = Frame()
+        look_at(fr, kx, ky, h=EH * 0.85)
+        poly(fr, [(kx, ky - 16), (kx + 12, ky), (kx, ky + 18), (kx - 12, ky)], ORANGE)
+        poly(fr, [(kx, ky + 18), (113, 150)], (200, 200, 200), width=1)
+        for i in range(3):
+            blob(fr, kx - 4 + 3 * math.sin(k + i), ky + 26 + i * 8, 3, 2, PINK)
+        seq.append((fr, 100))
+    return seq
+
+
+def a_fishing():
+    seq = []
+    for k in range(20):
+        t = k / 20
+        fr = Frame()
+        bite = t > 0.6
+        pair(fr, dx=10, dy=-10 - (6 if bite else 0), h=EH * (0.9 if bite else 0.6), lid=None if bite else (0.3, 0.3))
+        blob(fr, 113, 146, 100, 8, (40, 90, 170))
+        poly(fr, [(40, 150), (150, 70)], BROWN, width=3)
+        fy = 140 - (30 * (t - 0.6) / 0.4 if bite else 2 * math.sin(k))
+        poly(fr, [(150, 70), (170, fy)], (200, 200, 200), width=1)
+        if bite:
+            blob(fr, 170, fy + 8, 12, 6, ORANGE); poly(fr, [(182, fy + 8), (190, fy + 2), (190, fy + 14)], ORANGE)
+            glyph(fr, '!', 200, 30, 22, YEL, bold=True)
+        seq.append((fr, 110))
+    return seq
+
+
+def a_hula():
+    seq = []
+    for k in range(16):
+        a = 2 * math.pi * k / 8
+        fr = Frame()
+        pair(fr, dx=6 * math.sin(a), dy=-16, h=EH * 0.6, arc=True, w=EW * 0.85)
+        m = fr.mask(); d = ImageDraw.Draw(m)
+        cx = 113 + 14 * math.cos(a)
+        d.ellipse([sc(cx - 70), sc(118), sc(cx + 70), sc(142)], outline=255, width=sc(5)); fr.add(m, PURPLE)
+        seq.append((fr, 70))
+    return seq
+
+
+def a_wish():
+    seq = []
+    for k in range(20):
+        t = k / 20
+        fr = Frame()
+        pair(fr, dy=10, h=EH * 0.7, w=EW * 0.9, r=24) if t < 0.5 else (line_eye(fr, LX, CY + 10, bend=10), line_eye(fr, RX, CY + 10, bend=10))
+        sx = 220 - 220 * ((t * 1.5) % 1); sy = 10 + 30 * ((t * 1.5) % 1)
+        star(fr, sx, sy, 6, YEL)
+        for i in range(1, 5):
+            blob(fr, sx + i * 8, sy - i * 1.2, 2.5 - i * 0.4, 2.5 - i * 0.4, (255, 230, 150))
+        if t > 0.5:
+            heart(fr, 113, 136, 16, PINK)
+        seq.append((fr, 110))
+    return seq
+
+
+def a_flower():
+    seq = []
+    for k in range(18):
+        t = k / 18
+        fr = Frame()
+        sniff = (k // 3) % 2
+        if t < 0.75:
+            pair(fr, dy=-10, h=EH * (0.55 if sniff else 0.7), w=EW * 0.85, lid=(0.25, 0.25))
+        else:
+            line_eye(fr, LX, CY - 6, bend=14); line_eye(fr, RX, CY - 6, bend=14)
+            heart(fr, 180, 40, 14, PINK)
+        poly(fr, [(113, 150), (113, 118)], GRN, width=3)
+        for i in range(6):
+            a = i * math.pi / 3 + k * 0.1
+            blob(fr, 113 + 9 * math.cos(a), 112 + 9 * math.sin(a), 6, 6, PINK)
+        blob(fr, 113, 112, 5, 5, YEL)
+        seq.append((fr, 110))
+    return seq
+
+
+def a_clock():
+    seq = []
+    for k in range(16):
+        a = 2 * math.pi * k / 16
+        fr = Frame()
+        eye(fr, LX - 14 + 8 * math.sin(a), CY - 10, h=EH * 0.6, w=EW * 0.7)
+        m = fr.mask(); d = ImageDraw.Draw(m)
+        d.ellipse([sc(158), sc(96), sc(206), sc(144)], outline=255, width=sc(3)); fr.add(m, WHITE)
+        poly(fr, [(182, 120), (182 + 18 * math.sin(a), 120 - 18 * math.cos(a))], RED2, width=2)
+        poly(fr, [(182, 120), (194, 120)], WHITE, width=3)
+        eye(fr, RX - 46 + 8 * math.sin(a), CY - 10, h=EH * 0.6, w=EW * 0.7)
+        glyph(fr, 'tik' if k % 2 == 0 else 'tak', 60, 136, 14, (170, 170, 180))
+        seq.append((fr, 120))
+    return seq
+
+
+def a_love():
+    seq = []
+    for k in range(14):
+        s = 1 + 0.15 * abs(math.sin(math.pi * k / 3.5))
+        fr = Frame()
+        heart(fr, LX, CY, 50 * s, PINK); heart(fr, RX, CY, 50 * s, PINK)
+        for i in range(3):
+            p = (k / 14 + i / 3) % 1
+            heart(fr, 30 + i * 80, 150 - 140 * p, 10, (255, 120, 180))
+        seq.append((fr, 90))
+    return seq
+
+
+def a_charge():
+    seq = []
+    for k in range(18):
+        lvl = min(1, k / 14)
+        fr = Frame()
+        line_eye(fr, LX, CY - 16, bend=-8); line_eye(fr, RX, CY - 16, bend=-8)
+        rrect(fr, 80, 104, 140, 136, 4, (200, 200, 210), outline=3)
+        rrect(fr, 140, 112, 146, 128, 1, (200, 200, 210))
+        col = RED2 if lvl < 0.3 else (YEL if lvl < 0.7 else GRN)
+        rrect(fr, 84, 108, 84 + 52 * lvl, 132, 2, col)
+        glyph(fr, '⚡' if k % 2 else '', 170, 120, 18, YEL)
+        seq.append((fr, 110))
+    return seq
+
+
+# ---------- pakiet 5 ----------
+def a_ice_cream():
+    seq = []
+    for k in range(16):
+        t = k / 16
+        fr = Frame()
+        pair(fr, dy=-16, arc=True, h=EH * 0.6, w=EW * 0.85)
+        poly(fr, [(100, 116), (126, 116), (113, 150)], (220, 170, 100))
+        lick = int(t * 3)
+        for i, c in enumerate((PINK, (250, 240, 220), (140, 90, 60))[:3 - lick // 2]):
+            blob(fr, 113, 110 - i * 12, 14 - i, 11, c)
+        seq.append((fr, 120))
+    return seq
+
+
+def a_movie():
+    seq = []
+    for k in range(18):
+        fr = Frame()
+        flick = (k % 3) * 0.08
+        pair(fr, dy=-8, h=EH * (0.75 + flick), w=EW * 0.95, r=24)
+        poly(fr, [(150, 150), (190, 150), (194, 116), (146, 116)], (230, 60, 60))
+        for i in range(5):
+            jump = 10 * abs(math.sin(k * 0.9 + i)) if (k + i) % 4 == 0 else 0
+            blob(fr, 154 + i * 8, 112 - jump - (i % 2) * 4, 5, 5, (255, 240, 200))
+        seq.append((fr, 110))
+    return seq
+
+
+def a_piano():
+    seq = []
+    for k in range(16):
+        fr = Frame()
+        sway = 5 * math.sin(math.pi * k / 4)
+        line_eye(fr, LX + sway, CY - 10, bend=12); line_eye(fr, RX + sway, CY - 10, bend=12)
+        rrect(fr, 50, 112, 176, 146, 3, WHITE)
+        pressed = (k * 3) % 7
+        for i in range(7):
+            x = 50 + i * 18
+            poly(fr, [(x, 112), (x, 146)], (120, 120, 130), width=1)
+            if i == pressed:
+                rrect(fr, x + 2, 114, x + 16, 144, 1, SKY)
+        for i in (0, 1, 3, 4, 5):
+            rrect(fr, 50 + i * 18 + 12, 112, 50 + i * 18 + 24, 130, 1, (30, 30, 40))
+        glyph(fr, '♪', 30 + (k * 11) % 160, 40 - (k % 4) * 6, 14, YEL)
+        seq.append((fr, 100))
+    return seq
+
+
+def a_butterfly():
+    seq = []
+    for k in range(20):
+        t = k / 20
+        bx = 113 + 80 * math.sin(2 * math.pi * t); by = 70 + 40 * math.sin(4 * math.pi * t)
+        fr = Frame()
+        look_at(fr, bx, by, h=EH * 0.85)
+        f = abs(math.sin(k * 1.3))
+        for s in (-1, 1):
+            blob(fr, bx + s * 8 * f, by - 4, 8 * f + 1, 7, PURPLE)
+            blob(fr, bx + s * 6 * f, by + 6, 6 * f + 1, 5, PINK)
+        poly(fr, [(bx, by - 8), (bx, by + 10)], (40, 40, 40), width=2)
+        seq.append((fr, 90))
+    return seq
+
+
+def a_planet():
+    seq = []
+    for k in range(18):
+        a = 2 * math.pi * k / 18
+        fr = Frame()
+        px, py = 113 + 70 * math.cos(a), 66 + 30 * math.sin(a)
+        look_at(fr, px, py, h=EH * 0.8)
+        blob(fr, px, py, 12, 12, ORANGE)
+        m = fr.mask(); ImageDraw.Draw(m).ellipse([sc(px - 22), sc(py - 5), sc(px + 22), sc(py + 5)], outline=255, width=sc(2)); fr.add(m, YEL)
+        star(fr, 20, 20, 3, WHITE); star(fr, 200, 130, 3, WHITE)
+        seq.append((fr, 100))
+    return seq
+
+
+def a_tea():
+    seq = []
+    for k in range(18):
+        t = k / 18
+        fr = Frame()
+        pair(fr, dy=-14, h=EH * 0.55, w=EW * 0.85, lid=(0.35, 0.35))
+        m = fr.mask(); ImageDraw.Draw(m).chord([sc(88), sc(104), sc(138), sc(150)], 0, 180, fill=255); fr.add(m, WHITE)
+        m = fr.mask(); ImageDraw.Draw(m).ellipse([sc(134), sc(118), sc(150), sc(134)], outline=255, width=sc(3)); fr.add(m, WHITE)
+        blob(fr, 113, 128, 22, 3, (190, 120, 60))
+        steam(fr, 113, 120, t)
+        seq.append((fr, 120))
+    return seq
+
+
+def a_yoga():
+    seq = []
+    for k in range(18):
+        t = k / 18
+        tilt = 14 * math.sin(2 * math.pi * t)
+        fr = Frame()
+        eye(fr, LX, CY + tilt, h=EH * 0.7, lid=(0.4, 0.4))
+        eye(fr, RX, CY - tilt, h=EH * 0.7, lid=(0.4, 0.4))
+        if 0.4 < t < 0.6:
+            glyph(fr, 'wdech...', 113, 140, 14, (170, 150, 255))
+        elif t >= 0.8:
+            glyph(fr, 'wydech', 113, 140, 14, (170, 150, 255))
+        seq.append((fr, 140))
+    return seq
+
+
+def a_trampoline():
+    seq = []
+    for k in range(14):
+        t = k / 14
+        h = abs(math.sin(math.pi * t * 2))
+        fr = Frame()
+        squash = 1 - 0.3 * max(0, 0.2 - h) * 5
+        pair(fr, dy=30 - 60 * h, h=EH * 0.7 * squash, w=EW * (1.25 - 0.25 * squash), arc=h > 0.6)
+        poly(fr, [(40, 146 - 6 * max(0, 0.2 - h) * 5), (186, 146 - 6 * max(0, 0.2 - h) * 5)], PURPLE, width=4)
+        seq.append((fr, 70))
+    return seq
+
+
+def a_mirror():
+    seq = []
+    for k in range(16):
+        fr = Frame()
+        m = fr.mask(); ImageDraw.Draw(m).rounded_rectangle([sc(132), sc(14), sc(214), sc(140)], radius=sc(10), outline=255, width=sc(3)); fr.add(m, (200, 200, 220))
+        eye(fr, 60, CY, h=EH * 0.7, w=EW * 0.7)
+        if 6 <= k <= 9:
+            line_eye(fr, 104, CY + 4, w=EW * 0.6, bend=10)
+        else:
+            eye(fr, 104, CY, h=EH * 0.7, w=EW * 0.7)
+        eye(fr, 158, CY, h=EH * 0.45, w=EW * 0.45, color=(120, 160, 200))
+        eye(fr, 190, CY, h=EH * 0.45, w=EW * 0.45, color=(120, 160, 200))
+        seq.append((fr, 140))
+    return seq
+
 ANIMS = {
+    'trampoline': a_trampoline, 'mirror': a_mirror,
+    'ice_cream': a_ice_cream, 'movie': a_movie, 'piano': a_piano, 'butterfly': a_butterfly,
+    'planet': a_planet, 'tea': a_tea, 'yoga': a_yoga,
+    'juggle': a_juggle, 'bubbles': a_bubbles, 'paint': a_paint, 'guitar': a_guitar,
+    'drums': a_drums, 'cook': a_cook, 'selfie': a_selfie, 'spy': a_spy, 'boo': a_boo,
+    'glitch': a_glitch, 'gum': a_gum, 'magic': a_magic, 'typing': a_typing, 'bird': a_bird,
+    'balloon': a_balloon, 'rubik': a_rubik, 'rain': a_rain, 'snow': a_snow, 'kite': a_kite,
+    'fishing': a_fishing, 'hula': a_hula, 'wish': a_wish, 'flower': a_flower, 'clock': a_clock,
+    'love': a_love, 'charge': a_charge,
     'breakfast': lambda: meal(f_breakfast), 'snack_apple': lambda: meal(f_apple, n=18),
     'lunch': lambda: meal(f_soup), 'cake': lambda: meal(f_cake, n=16), 'supper': lambda: meal(f_sandwich, n=18),
     'drink': a_drink, 'brush_teeth': a_brush, 'water_plant': a_water_plant, 'workout': a_workout,
@@ -1166,7 +1753,7 @@ ANIMS = {
 def save_gif(name, seq):
     frames = [fr.render() for fr, _ in seq]
     durs = [ms for _, ms in seq]
-    pal = [f.convert('P', palette=Image.ADAPTIVE, colors=48) for f in frames]
+    pal = [f.convert('P', palette=Image.ADAPTIVE, colors=int(os.environ.get('GIF_COLORS', '48'))) for f in frames]
     path = os.path.join(OUT, f'{name}.gif')
     pal[0].save(path, save_all=True, append_images=pal[1:], duration=durs, loop=0, optimize=True, disposal=1)
     return path, frames

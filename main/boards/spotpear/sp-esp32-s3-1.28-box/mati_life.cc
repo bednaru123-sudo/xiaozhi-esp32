@@ -68,10 +68,11 @@ const char* ActivityName(MatiLife::Activity a) {
     return "?";
 }
 
-// Tabela czynnosci. Wagi czynnosci "luzem" liczone w PickAct(), czynnosci
-// dnia (posilki, obowiazki) uruchamia RunRoutines().
+// Tabela czynnosci. Czynnosci "luzem" wybiera PickAct() (waga bazowa x cecha
+// charakteru x pora dnia x "dawno tego nie robil"), czynnosci dnia (posilki,
+// obowiazki) uruchamia RunRoutines(), reakcje - dotyk i gry.
 enum ActId {
-    kActDance = 0,
+    kActDance,
     kActSneeze,
     kActHiccup,
     kActDaydream,
@@ -86,7 +87,6 @@ enum ActId {
     kActProud,
     kActCountSheep,
     kActCurious,
-    // rytm dnia
     kActBreakfast,
     kActSnack,
     kActLunch,
@@ -100,54 +100,166 @@ enum ActId {
     kActGoodnight,
     kActSunrise,
     kActParty,
-    // reakcje
     kActTickle,
     kActNoThanks,
     kActTrophy,
+    kActJuggle,
+    kActBubbles,
+    kActPaint,
+    kActGuitar,
+    kActDrums,
+    kActCook,
+    kActSelfie,
+    kActSpy,
+    kActBoo,
+    kActGlitch,
+    kActGum,
+    kActMagic,
+    kActTyping,
+    kActBird,
+    kActBalloon,
+    kActRubik,
+    kActRain,
+    kActSnow,
+    kActKite,
+    kActFishing,
+    kActHula,
+    kActWish,
+    kActFlower,
+    kActClock,
+    kActLove,
+    kActCharge,
+    kActIceCream,
+    kActMovie,
+    kActPiano,
+    kActButterfly,
+    kActPlanet,
+    kActTea,
+    kActYoga,
+    kActTrampoline,
+    kActMirror,
+    kActMoodWink,
+    kActMoodCool,
+    kActMoodRelaxed,
+    kActMoodHappy,
+    kActMoodThinking,
+    kActMoodSilly,
+    kActMoodConfident,
+    kActMoodFunny,
+    kActMoodLaughing,
+    kActMoodEmbarrassed,
+    kActMoodKissy,
+    kActMoodSurprised,
+    kActMoodConfused,
+    kActMoodSad,
+    kActMoodLoving,
     kActCount
 };
+
+// Cecha charakteru, ktora wzmacnia czynnosc
+enum Trait : uint8_t { kNone, kCur, kPlay, kMusic, kSoc, kLazy, kActive };
+// Pora dnia, w ktorej czynnosc jest czestsza
+constexpr uint8_t kTodM = 1;  // rano 6-11
+constexpr uint8_t kTodD = 2;  // poludnie 11-14
+constexpr uint8_t kTodA = 4;  // popoludnie 14-18
+constexpr uint8_t kTodE = 8;  // wieczor 18-22
 
 struct ActDef {
     const char* emotion;
     int duration_ms;
     const char* label;
     const std::string_view* sound;
-    int food;  // ile dodaje do najedzenia
+    int food;     // ile dodaje do najedzenia
+    float base;   // waga bazowa (0 = tylko z rytmu dnia / jako reakcja)
+    Trait trait;
+    uint8_t tod;
 };
 
 const ActDef kActs[kActCount] = {
-    {"dance", 6300, "tanczy", &Lang::Sounds::OGG_MATI_DANCE, 0},
-    {"sneeze", 2200, "kicha", &Lang::Sounds::OGG_MATI_SNEEZE, 0},
-    {"hiccup", 4200, "ma czkawke", &Lang::Sounds::OGG_MATI_HICCUP, 0},
-    {"daydream", 6600, "marzy patrzac w gwiazdy", nullptr, 0},
-    {"stretch", 2400, "przeciaga sie", &Lang::Sounds::OGG_MATI_STRETCH, 0},
-    {"read", 9300, "czyta ksiazke", &Lang::Sounds::OGG_MATI_PAGE, 0},
-    {"peekaboo", 2700, "bawi sie w a kuku", &Lang::Sounds::OGG_MATI_PEEKABOO, 0},
-    {"chase_fly", 4400, "goni muche", nullptr, 0},
-    {"dizzy", 2600, "kreci mu sie w glowie", &Lang::Sounds::OGG_MATI_DIZZY, 0},
-    {"whistle", 3500, "pogwizduje", &Lang::Sounds::OGG_MATI_WHISTLE, 0},
-    {"meditate", 8400, "medytuje", nullptr, 0},
-    {"doze", 4000, "przysypia", nullptr, 0},
-    {"proud", 2200, "jest z siebie dumny", &Lang::Sounds::OGG_MATI_PROUD, 0},
-    {"count_sheep", 6500, "liczy owce", nullptr, 0},
-    {"curious", 3100, "cos go zaciekawilo", nullptr, 0},
-    {"breakfast", 6600, "je sniadanie: tost z jajkiem i kakao", &Lang::Sounds::OGG_MATI_MUNCH, 35},
-    {"snack_apple", 4000, "je drugie sniadanie: jabluszko", &Lang::Sounds::OGG_MATI_MUNCH, 15},
-    {"lunch", 6600, "je obiad: zupe pomidorowa", &Lang::Sounds::OGG_MATI_GULP, 40},
-    {"cake", 3600, "je podwieczorek: kawalek ciasta", &Lang::Sounds::OGG_MATI_MUNCH, 15},
-    {"supper", 6000, "je kolacje: kanapke", &Lang::Sounds::OGG_MATI_MUNCH, 30},
-    {"drink", 4000, "pije wode", &Lang::Sounds::OGG_MATI_GULP, 3},
-    {"brush_teeth", 4800, "myje zeby", &Lang::Sounds::OGG_MATI_SCRUB, 0},
-    {"water_plant", 4000, "podlewa kwiatek", &Lang::Sounds::OGG_MATI_POUR, 0},
-    {"workout", 4800, "cwiczy z hantlami", &Lang::Sounds::OGG_MATI_STRETCH, 0},
-    {"sweep", 4800, "zamiata", &Lang::Sounds::OGG_MATI_SWISH, 0},
-    {"goodnight", 5200, "mowi dobranoc", &Lang::Sounds::OGG_MATI_LULLABY, 0},
-    {"sunrise", 4000, "wita slonce", &Lang::Sounds::OGG_MATI_MORNING, 0},
-    {"party", 6300, "robi weekendowa imprezke", &Lang::Sounds::OGG_MATI_DANCE, 0},
-    {"tickle", 2600, "smieje sie od laskotek", &Lang::Sounds::OGG_MATI_GIGGLE, 0},
-    {"no_thanks", 1900, "odmawia, bo jest najedzony", &Lang::Sounds::OGG_MATI_NOPE, 0},
-    {"trophy", 3300, "cieszy sie z rekordu", &Lang::Sounds::OGG_MATI_TADA, 0},
+    {"dance", 6300, "tanczy", &Lang::Sounds::OGG_MATI_DANCE, 0, 3.0f, kMusic, kTodA},
+    {"sneeze", 2200, "kicha", &Lang::Sounds::OGG_MATI_SNEEZE, 0, 0.8f, kNone, 0},
+    {"hiccup", 4200, "ma czkawke", &Lang::Sounds::OGG_MATI_HICCUP, 0, 0.6f, kNone, 0},
+    {"daydream", 6600, "marzy patrzac w gwiazdy", nullptr, 0, 1.5f, kCur, kTodE},
+    {"stretch", 2400, "przeciaga sie", &Lang::Sounds::OGG_MATI_STRETCH, 0, 1.2f, kActive, kTodM},
+    {"read", 9300, "czyta ksiazke", &Lang::Sounds::OGG_MATI_PAGE, 0, 2.0f, kCur, kTodE},
+    {"peekaboo", 2700, "bawi sie w a kuku", &Lang::Sounds::OGG_MATI_PEEKABOO, 0, 2.0f, kSoc, 0},
+    {"chase_fly", 4400, "goni muche", nullptr, 0, 2.0f, kPlay, kTodA},
+    {"dizzy", 2600, "kreci mu sie w glowie", &Lang::Sounds::OGG_MATI_DIZZY, 0, 0.0f, kNone, 0},
+    {"whistle", 3500, "pogwizduje", &Lang::Sounds::OGG_MATI_WHISTLE, 0, 2.0f, kMusic, 0},
+    {"meditate", 8400, "medytuje", nullptr, 0, 1.2f, kLazy, kTodE},
+    {"doze", 4000, "przysypia", nullptr, 0, 1.2f, kLazy, kTodD|kTodA},
+    {"proud", 2200, "jest z siebie dumny", &Lang::Sounds::OGG_MATI_PROUD, 0, 0.8f, kNone, 0},
+    {"count_sheep", 6500, "liczy owce", nullptr, 0, 0.0f, kNone, 0},
+    {"curious", 3100, "cos go zaciekawilo", nullptr, 0, 2.5f, kCur, 0},
+    {"breakfast", 6600, "je sniadanie: tost z jajkiem i kakao", &Lang::Sounds::OGG_MATI_MUNCH, 35, 0.0f, kNone, 0},
+    {"snack_apple", 4000, "je drugie sniadanie: jabluszko", &Lang::Sounds::OGG_MATI_MUNCH, 15, 0.0f, kNone, 0},
+    {"lunch", 6600, "je obiad: zupe pomidorowa", &Lang::Sounds::OGG_MATI_GULP, 40, 0.0f, kNone, 0},
+    {"cake", 3600, "je podwieczorek: kawalek ciasta", &Lang::Sounds::OGG_MATI_MUNCH, 15, 0.0f, kNone, 0},
+    {"supper", 6000, "je kolacje: kanapke", &Lang::Sounds::OGG_MATI_MUNCH, 30, 0.0f, kNone, 0},
+    {"drink", 4000, "pije wode", &Lang::Sounds::OGG_MATI_GULP, 3, 0.0f, kNone, 0},
+    {"brush_teeth", 4800, "myje zeby", &Lang::Sounds::OGG_MATI_SCRUB, 0, 0.0f, kNone, 0},
+    {"water_plant", 4000, "podlewa kwiatek", &Lang::Sounds::OGG_MATI_POUR, 0, 0.6f, kNone, kTodA},
+    {"workout", 4800, "cwiczy z hantlami", &Lang::Sounds::OGG_MATI_STRETCH, 0, 1.2f, kActive, kTodM},
+    {"sweep", 4800, "zamiata", &Lang::Sounds::OGG_MATI_SWISH, 0, 0.6f, kActive, kTodD|kTodA},
+    {"goodnight", 5200, "mowi dobranoc", &Lang::Sounds::OGG_MATI_LULLABY, 0, 0.0f, kNone, 0},
+    {"sunrise", 4000, "wita slonce", &Lang::Sounds::OGG_MATI_MORNING, 0, 0.0f, kNone, 0},
+    {"party", 6300, "robi weekendowa imprezke", &Lang::Sounds::OGG_MATI_DANCE, 0, 0.0f, kNone, 0},
+    {"tickle", 2600, "smieje sie od laskotek", &Lang::Sounds::OGG_MATI_GIGGLE, 0, 0.0f, kNone, 0},
+    {"no_thanks", 1900, "odmawia, bo jest najedzony", &Lang::Sounds::OGG_MATI_NOPE, 0, 0.0f, kNone, 0},
+    {"trophy", 3300, "cieszy sie z rekordu", &Lang::Sounds::OGG_MATI_TADA, 0, 0.0f, kNone, 0},
+    {"juggle", 3800, "zongluje pilkami", &Lang::Sounds::OGG_MATI_BOING, 0, 2.0f, kPlay, kTodA},
+    {"bubbles", 4900, "puszcza banki mydlane", &Lang::Sounds::OGG_MATI_POP, 0, 2.0f, kPlay, 0},
+    {"paint", 5400, "maluje obrazek", nullptr, 0, 1.8f, kCur, kTodA},
+    {"guitar", 5800, "gra na gitarze", &Lang::Sounds::OGG_MATI_STRUM, 0, 2.0f, kMusic, kTodA|kTodE},
+    {"drums", 4300, "gra na bebnach", &Lang::Sounds::OGG_MATI_DRUMS, 0, 1.6f, kMusic, kTodA},
+    {"cook", 4900, "gotuje jajecznice", &Lang::Sounds::OGG_MATI_SIZZLE, 5, 1.5f, kCur, kTodD|kTodE},
+    {"selfie", 3200, "robi sobie selfie", &Lang::Sounds::OGG_MATI_CLICK, 0, 1.2f, kSoc, 0},
+    {"spy", 4200, "bawi sie w szpiega", nullptr, 0, 1.2f, kPlay, kTodE},
+    {"boo", 2900, "straszy jak duszek", &Lang::Sounds::OGG_MATI_BOO, 0, 1.2f, kPlay, kTodE},
+    {"glitch", 2700, "ma maly blad systemu", &Lang::Sounds::OGG_MATI_BLEEP, 0, 0.5f, kNone, 0},
+    {"gum", 3500, "zuje gume balonowa", &Lang::Sounds::OGG_MATI_POP, 0, 1.2f, kPlay, 0},
+    {"magic", 4900, "pokazuje sztuczke magiczna", &Lang::Sounds::OGG_MATI_SPARKLE, 0, 1.5f, kCur, 0},
+    {"typing", 4900, "programuje na komputerze", &Lang::Sounds::OGG_MATI_KEYS, 0, 1.5f, kCur, kTodM|kTodD},
+    {"bird", 4000, "patrzy na ptaszka za oknem", &Lang::Sounds::OGG_MATI_TWEET, 0, 1.5f, kCur, kTodM},
+    {"balloon", 4000, "puscil balonik i odlecial", nullptr, 0, 0.8f, kNone, 0},
+    {"rubik", 4800, "uklada kostke Rubika", nullptr, 0, 1.5f, kCur, 0},
+    {"rain", 4900, "chowa sie pod parasolem przed deszczem", &Lang::Sounds::OGG_MATI_RAIN, 0, 1.0f, kNone, 0},
+    {"snow", 4000, "lapie platki sniegu", nullptr, 0, 0.3f, kNone, 0},
+    {"kite", 3600, "puszcza latawca", &Lang::Sounds::OGG_MATI_SWISH, 0, 1.2f, kPlay, kTodA},
+    {"fishing", 4400, "lowi ryby", &Lang::Sounds::OGG_MATI_SPLASH, 0, 1.2f, kLazy, kTodA},
+    {"hula", 3400, "kreci hula hop", nullptr, 0, 1.5f, kActive, kTodA},
+    {"wish", 4400, "widzi spadajaca gwiazde i mysli zyczenie", &Lang::Sounds::OGG_MATI_SPARKLE, 0, 1.2f, kCur, kTodE},
+    {"flower", 4000, "wacha kwiatek", nullptr, 0, 1.2f, kNone, kTodM|kTodA},
+    {"clock", 3800, "patrzy na zegar i czeka na domownikow", &Lang::Sounds::OGG_MATI_TICK, 0, 0.8f, kNone, 0},
+    {"love", 2600, "czuje milosc do domownikow", &Lang::Sounds::OGG_MATI_HEARTBEAT, 0, 0.5f, kSoc, 0},
+    {"charge", 4000, "laduje baterie", &Lang::Sounds::OGG_MATI_CHARGE, 0, 0.5f, kNone, 0},
+    {"ice_cream", 3800, "je lody", &Lang::Sounds::OGG_MATI_MUNCH, 10, 0.8f, kPlay, kTodA},
+    {"movie", 6000, "oglada film z popcornem", &Lang::Sounds::OGG_MATI_POP, 0, 1.2f, kLazy, kTodE},
+    {"piano", 4800, "gra na pianinie", &Lang::Sounds::OGG_MATI_PIANO, 0, 1.8f, kMusic, 0},
+    {"butterfly", 3600, "goni motyla", nullptr, 0, 1.5f, kPlay, kTodM|kTodA},
+    {"planet", 3600, "obserwuje planete przez okno", nullptr, 0, 1.2f, kCur, kTodE},
+    {"tea", 4300, "pije herbatke", &Lang::Sounds::OGG_MATI_GULP, 2, 1.0f, kLazy, kTodA|kTodE},
+    {"yoga", 5000, "cwiczy joge", nullptr, 0, 1.2f, kActive, kTodM},
+    {"trampoline", 2900, "skacze na trampolinie", &Lang::Sounds::OGG_MATI_BOING, 0, 1.5f, kPlay, kTodA},
+    {"mirror", 4500, "przeglada sie w lusterku", nullptr, 0, 1.0f, kSoc, kTodM},
+    {"winking", 3000, "puszcza oczko", nullptr, 0, 0.7f, kSoc, 0},
+    {"cool", 3000, "udaje twardziela", nullptr, 0, 0.7f, kNone, 0},
+    {"relaxed", 3000, "odpoczywa", nullptr, 0, 0.7f, kLazy, 0},
+    {"happy", 3000, "cieszy sie", nullptr, 0, 0.8f, kNone, 0},
+    {"thinking", 3000, "mysli o czyms", nullptr, 0, 0.7f, kCur, 0},
+    {"silly", 3000, "robi glupie miny", nullptr, 0, 0.7f, kPlay, 0},
+    {"confident", 3000, "jest pewny siebie", nullptr, 0, 0.5f, kNone, 0},
+    {"funny", 3000, "wyglupia sie", nullptr, 0, 0.7f, kPlay, 0},
+    {"laughing", 3000, "smieje sie", nullptr, 0, 0.6f, kPlay, 0},
+    {"embarrassed", 3000, "jest zawstydzony", nullptr, 0, 0.4f, kNone, 0},
+    {"kissy", 3000, "posyla buziaka", nullptr, 0, 0.4f, kSoc, 0},
+    {"surprised", 3000, "jest zaskoczony", nullptr, 0, 0.5f, kNone, 0},
+    {"confused", 3000, "jest zdezorientowany", nullptr, 0, 0.5f, kNone, 0},
+    {"sad", 3000, "jest troche smutny", nullptr, 0, 0.2f, kNone, 0},
+    {"loving", 3000, "patrzy z czuloscia", nullptr, 0, 0.4f, kSoc, 0},
 };
+
+static_assert(kActCount <= MatiLife::kMaxActs, "Zwieksz kMaxActs");
 
 // Czynnosci dnia: [od, do) godziny, przesuniecie w weekend, maska dni (bit0 = niedziela)
 struct Routine {
@@ -232,12 +344,16 @@ void MatiLife::RegisterTools() {
                     SetSoundsEnabled(props["enabled"].value<bool>());
                     return true;
                 });
-    mcp.AddTool("self.mati.do",
-                "Popros Matiego o konkretna czynnosc pokazana na ekranie po zakonczeniu rozmowy. "
-                "action: dance, party, stretch, workout, read, peekaboo, chase_fly, whistle, "
-                "meditate, daydream, count_sheep, curious, proud, sneeze, hiccup, breakfast, "
-                "snack_apple, lunch, cake, supper, drink, brush_teeth, water_plant, sweep, "
-                "goodnight, sunrise.",
+    std::string do_desc =
+        "Popros Matiego o konkretna czynnosc pokazana na ekranie po zakonczeniu rozmowy. "
+        "Nazwy mowia, co to jest (np. guitar = gra na gitarze, cook = gotuje, movie = film). "
+        "action: ";
+    for (int i = 0; i < kActCount; i++) {
+        if (i == kActTickle || i == kActNoThanks || i == kActTrophy || i == kActDizzy) continue;
+        do_desc += kActs[i].emotion;
+        do_desc += (i + 1 < kActCount) ? ", " : ".";
+    }
+    mcp.AddTool("self.mati.do", do_desc,
                 PropertyList({Property("action", kPropertyTypeString)}),
                 [this](const PropertyList& props) -> ToolResult {
                     if (!RequestAct(props["action"].value<std::string>())) {
@@ -904,6 +1020,8 @@ void MatiLife::Finish(int64_t now_ms) {
 void MatiLife::BeginAct(int index, int64_t now_ms) {
     if (index < 0 || index >= kActCount) return;
     act_index_ = index;
+    last_done_ms_[index] = now_ms;
+    if (done_count_[index] < 65535) done_count_[index]++;
     recent_acts_[2] = recent_acts_[1];
     recent_acts_[1] = recent_acts_[0];
     recent_acts_[0] = index;
@@ -951,7 +1069,57 @@ void MatiLife::BeginAct(int index, int64_t now_ms) {
             follow_up_ = kActStretch;
             break;
         case kActDrink:
+        case kActTea:
             last_drink_ms_ = now_ms;
+            break;
+        case kActRubik:
+        case kActMagic:
+            if (Rand(2) == 0) follow_up_ = kActProud;
+            break;
+        case kActBalloon:
+            follow_up_ = kActMoodSad;
+            break;
+        case kActBoo:
+            follow_up_ = kActMoodLaughing;
+            break;
+        case kActGlitch:
+            follow_up_ = kActMoodConfused;
+            break;
+        case kActTrampoline:
+        case kActHula:
+            fun_ = Clamp(fun_ + 5);
+            energy_ = Clamp(energy_ - 2);
+            if (Rand(3) == 0) follow_up_ = kActDizzy;
+            break;
+        case kActCharge:
+            energy_ = Clamp(energy_ + 10);
+            break;
+        case kActFlower:
+            if (Rand(4) == 0) follow_up_ = kActSneeze;  // pylek!
+            break;
+        case kActSelfie:
+        case kActMirror:
+            Grow(sociability_, 1);
+            break;
+        case kActGuitar:
+        case kActPiano:
+        case kActDrums:
+            fun_ = Clamp(fun_ + 6);
+            Grow(musicality_, 1);
+            break;
+        case kActJuggle:
+        case kActBubbles:
+        case kActKite:
+        case kActButterfly:
+        case kActGum:
+            fun_ = Clamp(fun_ + 5);
+            break;
+        case kActPaint:
+        case kActTyping:
+        case kActBird:
+        case kActPlanet:
+            fun_ = Clamp(fun_ + 3);
+            Grow(curiosity_, 1);
             break;
         default:
             break;
@@ -965,40 +1133,98 @@ void MatiLife::BeginAct(int index, int64_t now_ms) {
 }
 
 int MatiLife::PickAct(int64_t now_ms) {
-    int hour = LocalHour();
-    bool morning = hour >= 7 && hour < 10;
-    bool afternoon = hour >= 14 && hour < 19;
-    bool evening = hour >= 19 && hour < 22;
-    float w[kActCount] = {};
-    w[kActDance] = 6 * (musicality_ + playfulness_) / 100.0f * (afternoon ? 1.5f : 1) *
-                   (energy_ > 40 ? 1 : 0.2f);
-    w[kActSneeze] = 1.2f;
-    w[kActHiccup] = 1.0f + (fullness_ > 85 ? 2 : 0);  // po obzarstwie
-    w[kActDaydream] = 3 * (100 - playfulness_ + curiosity_) / 100.0f * (evening ? 2 : 1);
-    w[kActStretch] = 2 + (morning ? 8 : 0) + (now_ms - last_interaction_ms_ > 30 * 60000 ? 2 : 0);
-    w[kActRead] = 4 * curiosity_ / 100.0f * (evening ? 3 : 1);
-    w[kActPeekaboo] = 4 * (playfulness_ + sociability_) / 200.0f;
-    w[kActChaseFly] = 4 * (playfulness_ + curiosity_) / 200.0f * (energy_ > 30 ? 1 : 0.3f);
-    w[kActWhistle] = 4 * musicality_ / 100.0f;
-    w[kActMeditate] = 2 * laziness_ / 100.0f * (evening ? 2 : 1) + (fun_ < 30 ? 0 : 0.5f);
-    w[kActDoze] = 4 * laziness_ / 100.0f * (energy_ < 50 ? 2.5f : 0.6f);
-    w[kActProud] = 1.0f + (affection_ > 75 ? 2 : 0);
-    w[kActCountSheep] = (hour >= 21 && hour < 22) ? 6 : 0;
-    w[kActCurious] = 5 * curiosity_ / 100.0f;
-    w[kActWorkout] = 1.5f * (100 - laziness_) / 100.0f * (energy_ > 50 ? 1 : 0.2f);
-    w[kActWaterPlant] = 0.8f;
-    w[kActSweep] = 0.8f * (100 - laziness_) / 100.0f;
-    // pozostale (posilki, dobranoc...) tylko z rytmu dnia
-    for (int r : recent_acts_) {
-        if (r >= 0) w[r] *= 0.1f;  // bez powtorek
-    }
+    // Sprawiedliwy wybor: waga bazowa x cecha charakteru x pora dnia x potrzeby
+    // x "dawno tego nie robil". Czynnosc swiezo wykonana ma ~0 szans, a taka,
+    // ktorej nie bylo od godzin (albo nigdy), dostaje kilkukrotny bonus - dzieki
+    // temu wszystkie animacje przewijaja sie po kolei, a nie tylko kilka.
+    struct tm tm_local;
+    bool has_time = LocalTm(&tm_local);
+    int hour = has_time ? tm_local.tm_hour : -1;
+    int month = has_time ? tm_local.tm_mon + 1 : 0;
+    uint8_t tod = 0;
+    if (hour >= 6 && hour < 11) tod = kTodM;
+    else if (hour >= 11 && hour < 14) tod = kTodD;
+    else if (hour >= 14 && hour < 18) tod = kTodA;
+    else if (hour >= 18 && hour < 22) tod = kTodE;
+
+    auto trait_value = [this](Trait t) -> int {
+        switch (t) {
+            case kCur: return curiosity_;
+            case kPlay: return playfulness_;
+            case kMusic: return musicality_;
+            case kSoc: return sociability_;
+            case kLazy: return laziness_;
+            case kActive: return 100 - laziness_;
+            default: return 50;
+        }
+    };
+    int64_t idle_min = (now_ms - last_interaction_ms_) / 60000;
+
+    float w[kActCount];
     float total = 0;
-    for (float x : w) total += x;
+    for (int i = 0; i < kActCount; i++) {
+        const ActDef& d = kActs[i];
+        float x = d.base;
+        if (x <= 0) {
+            w[i] = 0;
+            continue;
+        }
+        x *= 0.4f + trait_value(d.trait) / 60.0f;              // ok. 0.5 .. 2.0
+        if (d.tod && tod) x *= (d.tod & tod) ? 2.5f : 0.4f;
+        // potrzeby i okolicznosci
+        switch (i) {
+            case kActDance: case kActJuggle: case kActHula: case kActTrampoline:
+            case kActChaseFly: case kActButterfly: case kActKite: case kActWorkout:
+                if (energy_ < 40) x *= 0.2f;
+                break;
+            case kActHiccup:
+                if (fullness_ > 85) x *= 3;
+                break;
+            case kActDoze: case kActMeditate: case kActMovie:
+                if (energy_ < 50) x *= 2.5f;
+                break;
+            case kActCharge:
+                x *= energy_ < 40 ? 6 : 0.3f;
+                break;
+            case kActLove: case kActMoodLoving: case kActMoodKissy:
+                x *= affection_ > 70 ? 4 : 0.3f;
+                break;
+            case kActMoodSad: case kActClock:
+                if (affection_ < 35 || idle_min > 30) x *= 4;
+                break;
+            case kActSnow:
+                if (month == 12 || month <= 2) x *= 8;
+                else if (month == 11 || month == 3) x *= 2;
+                else x *= 0.1f;
+                break;
+            case kActFlower:
+                if (month >= 4 && month <= 9) x *= 2;
+                break;
+            case kActRain:
+                if (month >= 9 && month <= 11) x *= 1.8f;
+                break;
+            case kActCook: case kActIceCream:
+                if (fullness_ < 50) x *= 2;
+                if (i == kActIceCream && (month >= 5 && month <= 8)) x *= 2;
+                break;
+            default:
+                break;
+        }
+        // "dawno tego nie bylo": 0.05 tuz po, 1.0 po 30 min, max 4.0 (po 2 h / nigdy)
+        float since_min = last_done_ms_[i] == 0 ? 240.0f : (now_ms - last_done_ms_[i]) / 60000.0f;
+        x *= std::min(4.0f, 0.05f + since_min / 30.0f);
+        for (int r : recent_acts_) {
+            if (r == i) x *= 0.05f;  // bez powtorek z rzedu
+        }
+        w[i] = x;
+        total += x;
+    }
     if (total <= 0) return -1;
     float pick = (esp_random() / 4294967296.0f) * total;
     for (int i = 0; i < kActCount; i++) {
+        if (w[i] <= 0) continue;
         pick -= w[i];
-        if (pick <= 0 && w[i] > 0) return i;
+        if (pick <= 0) return i;
     }
     return kActCurious;
 }
@@ -1285,33 +1511,32 @@ void MatiLife::ChooseNext(int64_t now_ms) {
     if (MaybeSpeak(now_ms, false)) {
         return;
     }
-    // 7. Zwykle zycie
+    // 7. Zwykle zycie: najczesciej czynnosc z tabeli (sprawiedliwe losowanie),
+    // czasem rozgladanie sie, spiew, pilka, ziewniecie albo chwila spokoju
     int r = Rand(100);
     bool can_sing = now_ms - last_sing_ms_ > 20LL * 60 * 1000 && fun_ > 30 &&
                     (hour < 0 || (hour >= 9 && hour < 21));
-    int sing_pct = 3 + musicality_ / 12;          // 3..11 %
-    int play_pct = 3 + playfulness_ / 15;         // 3..9 %
-    if (r < 33) {
+    int sing_pct = 2 + musicality_ / 20;          // 2..6 %
+    int play_pct = 2 + playfulness_ / 25;         // 2..5 %
+    if (r < 18) {
         Begin(Activity::kLook, now_ms);
-    } else if (r < 68) {
+    } else if (r < 84) {
         int act = PickAct(now_ms);
         if (act >= 0) {
             BeginAct(act, now_ms);
         } else {
             Begin(Activity::kLook, now_ms);
         }
-    } else if (r < 78) {
-        Begin(Activity::kMood, now_ms);
-    } else if (r < 78 + sing_pct && can_sing) {
+    } else if (r < 84 + sing_pct && can_sing) {
         Begin(Activity::kSing, now_ms);
-    } else if (r < 78 + sing_pct + play_pct) {
+    } else if (r < 84 + sing_pct + play_pct) {
         fun_ = Clamp(fun_ + 6);
         Begin(Activity::kPlay, now_ms);
-    } else if (r < 94 && energy_ < 60 + laziness_ / 4) {
+    } else if (r < 96 && energy_ < 50 + laziness_ / 4) {
         Begin(Activity::kYawn, now_ms);
     } else {
         // chwila spokoju - neutralne oczy same mrugaja
-        next_event_ms_ = now_ms + RandRange(5000, 15000);
+        next_event_ms_ = now_ms + RandRange(4000, 10000);
     }
 }
 

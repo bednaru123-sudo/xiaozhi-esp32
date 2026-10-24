@@ -14,7 +14,6 @@ Processing language: pl-PL
   - User language: 53 strings
   - User language: 16 sounds
 Successfully generated language config file: /__w/xiaozhi-esp32/xiaozhi-esp32/main/assets/lang_config.h
-Partition table binary generated. Contents:
   emoji_collection: main/boards/spotpear/sp-esp32-s3-1.28-box/mati_eyes
   output: /__w/xiaozhi-esp32/xiaozhi-esp32/build/generated_assets.bin
   Note: Found multinet models ['mn7_en', 'fst'] but USE_CUSTOM_WAKE_WORD is disabled, skipping
@@ -25,14 +24,15 @@ Generated: /__w/xiaozhi-esp32/xiaozhi-esp32/build/temp_build/srmodels/srmodels.b
 Generated: /__w/xiaozhi-esp32/xiaozhi-esp32/build/temp_build/assets/index.json
 Generated: /__w/xiaozhi-esp32/xiaozhi-esp32/build/temp_build/config.json
 Successfully generated assets.bin: /__w/xiaozhi-esp32/xiaozhi-esp32/build/generated_assets.bin
-[142/2274] Building C object esp-idf/mbedtls/mbedtls/library/CMakeFiles/mbedtls.dir/ssl_debug_helpers_generated.c.obj
+Partition table binary generated. Contents:
+[138/2274] Building C object esp-idf/mbedtls/mbedtls/library/CMakeFiles/mbedtls.dir/ssl_debug_helpers_generated.c.obj
 Generated /__w/xiaozhi-esp32/xiaozhi-esp32/build/bootloader/bootloader.bin
-[1504/2274] Building C object esp-idf/78__xiaozhi-fonts/CMakeFiles/__idf_78__xiaozhi-fonts.dir/src/font_noto_emoji_30_1.c.obj
-[1505/2274] Building C object esp-idf/78__xiaozhi-fonts/CMakeFiles/__idf_78__xiaozhi-fonts.dir/src/font_noto_emoji_30_4.c.obj
-[1509/2274] Building C object esp-idf/78__xiaozhi-fonts/CMakeFiles/__idf_78__xiaozhi-fonts.dir/src/noto_emoji.c.obj
-[2106/2274] Building C object esp-idf/txp666__otto-emoji-gif-component/CMakeFiles/__idf_txp666__otto-emoji-gif-component.dir/src/otto_emoji_gif.c.obj
-[2107/2274] Linking C static library esp-idf/txp666__otto-emoji-gif-component/libtxp666__otto-emoji-gif-component.a
-[2185/2274] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/display/lvgl_display/emoji_collection.cc.obj
+[1505/2274] Building C object esp-idf/78__xiaozhi-fonts/CMakeFiles/__idf_78__xiaozhi-fonts.dir/src/font_noto_emoji_30_1.c.obj
+[1507/2274] Building C object esp-idf/78__xiaozhi-fonts/CMakeFiles/__idf_78__xiaozhi-fonts.dir/src/font_noto_emoji_30_4.c.obj
+[1508/2274] Building C object esp-idf/78__xiaozhi-fonts/CMakeFiles/__idf_78__xiaozhi-fonts.dir/src/noto_emoji.c.obj
+[2104/2274] Building C object esp-idf/txp666__otto-emoji-gif-component/CMakeFiles/__idf_txp666__otto-emoji-gif-component.dir/src/otto_emoji_gif.c.obj
+[2105/2274] Linking C static library esp-idf/txp666__otto-emoji-gif-component/libtxp666__otto-emoji-gif-component.a
+[2186/2274] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/display/lvgl_display/emoji_collection.cc.obj
 Generated /__w/xiaozhi-esp32/xiaozhi-esp32/build/xiaozhi.bin
  python -m esptool --chip esp32s3 -b 460800 --before default-reset --after hard-reset write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m 0x0 build/bootloader/bootloader.bin 0x8000 build/partition_table/partition-table.bin 0xd000 build/ota_data_initial.bin 0x20000 build/xiaozhi.bin 0x800000 build/generated_assets.bin
 esptool --chip esp32s3 merge-bin -o merged-binary.bin -f raw --flash-mode dio --flash-freq 80m --flash-size 16MB 0x0 bootloader/bootloader.bin 0x8000 partition_table/partition-table.bin 0xd000 ota_data_initial.bin 0x800000 generated_assets.bin 0x20000 xiaozhi.bin

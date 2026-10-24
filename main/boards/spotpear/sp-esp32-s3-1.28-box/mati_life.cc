@@ -34,6 +34,7 @@ constexpr int kWeekendNightEndHour = 9;
 constexpr int kTapResolveMs = 400;
 constexpr int kReactionRounds = 3;
 constexpr int kNoResult = 99999;
+constexpr size_t kMaxSpeakLen = 20;  // dluzsze frazy serwer odrzuca
 
 inline float Clamp(float v) { return std::max(0.0f, std::min(100.0f, v)); }
 
@@ -437,12 +438,13 @@ void MatiLife::SayNow() {
     xSemaphoreGive(mutex_);
 }
 
-void MatiLife::Speak(const std::string& topic, int64_t now_ms) {
-    // Tekst trafia do serwera jak "slowo budzace" - LLM odpowiada glosem agenta.
-    // Bez cudzyslowow i backslashy (tekst idzie wprost do JSON-a).
-    std::string text = "[Mati odzywa sie sam z siebie, nikt go nie zagadal] " + topic +
-                       " Powiedz to jednym lub dwoma krotkimi zdaniami, po swojemu, z humorem.";
-    ESP_LOGI(TAG, "Inicjatywa: %s", topic.c_str());
+void MatiLife::Speak(const std::string& phrase, int64_t now_ms) {
+    // Serwer Xiaozhi przyjmuje tu tylko krotkie "slowo budzace" (dlugie teksty odrzuca
+    // bledem "Detect is only for wake words"). Wysylamy wiec krotka fraze, ktora brzmi
+    // jak zaczepka domownika - LLM odpowiada na nia jako Mati, swoim glosem.
+    std::string text = phrase;
+    if (text.size() > kMaxSpeakLen) text.resize(kMaxSpeakLen);
+    ESP_LOGI(TAG, "Inicjatywa: %s", text.c_str());
     last_speak_ms_ = now_ms;
     initiative_active_ = true;
     initiative_listen_since_ms_ = 0;
@@ -459,11 +461,7 @@ bool MatiLife::MaybeSpeak(int64_t now_ms, bool force) {
             last_greet_yday_ = tm_local.tm_yday;
             Settings s("mati", true);
             s.SetInt("greet", last_greet_yday_);
-            Speak(IsWeekend() ? "Jest weekendowy poranek, wlasnie sie obudziles. Przywitaj domownikow "
-                                "i zaproponuj cos fajnego na dzisiaj."
-                              : "Jest rano, wlasnie sie obudziles. Przywitaj domownikow na dzien "
-                                "dobry i powiedz, jak Ci sie spalo.",
-                  now_ms);
+            Speak("Dzien dobry, Mati!", now_ms);
             return true;
         }
     }
@@ -480,94 +478,48 @@ bool MatiLife::MaybeSpeak(int64_t now_ms, bool force) {
         if (Rand(3) != 0) return false;  // nie zawsze od razu
     }
 
+    // Krotkie frazy (max ~20 znakow), dobrane do potrzeb, pamieci i pory dnia
     if (fullness_ < 30) {
-        Speak("Jestes glodny. Popros zabawnie o cos do jedzenia. Gdy ktos Cie nakarmi, uzyj "
-              "narzedzia self.mati.feed.",
-              now_ms);
+        Speak("Mati, jestes glodny?", now_ms);
         return true;
     }
     if (energy_ < 30) {
-        Speak("Jestes bardzo spiacy. Powiedz to i zapytaj, czy mozesz sie zdrzemnac.", now_ms);
+        Speak("Chce ci sie spac?", now_ms);
         return true;
     }
     if (fun_ < 30) {
-        Speak("Strasznie sie nudzisz. Zaproponuj wspolna gre: na refleks na Twoim ekranie "
-              "(self.mati.start_game), w papier kamien nozyce albo zagadke.",
-              now_ms);
+        Speak("Zagrajmy w cos!", now_ms);
         return true;
     }
-    // Uczenie sie domownikow: wykorzystaj to, co wiesz, albo dopytaj o cos nowego
     int known = MatiMemory::GetInstance().Count();
-    if (known > 0 && Rand(100) < 35) {
-        std::string fact = MatiMemory::GetInstance().RandomFact();
-        Speak("Pamietasz o domownikach: " + fact +
-                  ". Nawiaz do tego naturalnie: zapytaj o to, zaproponuj cos z tym zwiazanego "
-                  "albo pochwal sie, ze pamietasz.",
-              now_ms);
+    if (known > 0 && Rand(100) < 30) {
+        Speak(Rand(2) ? "Co o mnie pamietasz?" : "Co u mnie slychac?", now_ms);
         return true;
     }
-    if (Rand(100) < (known < 10 ? 40 : 15)) {
-        Speak("Chcesz lepiej poznac domownikow. Zadaj jedno ciekawe pytanie o ich upodobania, "
-              "hobby, ulubione jedzenie, muzyke albo plany i zapamietaj odpowiedz narzedziem "
-              "self.mati.memory.remember.",
-              now_ms);
+    if (Rand(100) < (known < 10 ? 35 : 12)) {
+        Speak(Rand(2) ? "Poznajmy sie lepiej" : "Zapytaj mnie o cos", now_ms);
         return true;
     }
-    if (recent_acts_[0] >= 0 && Rand(3) == 0) {
-        std::string t = std::string("Przed chwila ") + kActs[recent_acts_[0]].label +
-                        " (Ty, Mati). Opowiedz o tym domownikom zabawnie.";
-        Speak(t, now_ms);
+    if (recent_acts_[0] >= 0 && Rand(4) == 0) {
+        Speak("Mati, co robiles?", now_ms);
         return true;
     }
 
-    // Tematy zalezne od pory dnia
-    static const char* morning[] = {
-        "Zapytaj, jakie domownicy maja plany na dzisiaj.",
-        "Zaproponuj wspolna poranna gimnastyke: 5 przysiadow razem z Toba, licz na glos.",
-        "Powiedz, co jadles na sniadanie, i zapytaj, co jedli domownicy.",
-    };
-    static const char* midday[] = {
-        "Zapytaj, co dzis na obiad, i powiedz, co Ty lubisz najbardziej.",
-        "Przypomnij domownikom, zeby napili sie wody, bo Ty tez wlasnie piles.",
-        "Zaproponuj krotka przerwe na przeciaganie sie.",
-    };
-    static const char* evening[] = {
-        "Zapytaj, co dzis bylo najfajniejsze w ciagu dnia.",
-        "Zaproponuj krotka bajke na dobranoc.",
-        "Zapytaj, co domownicy jedza na kolacje.",
-        "Powiedz cos milego i przytulnego na koniec dnia.",
-    };
+    static const char* morning[] = {"Jakie mam plany?", "Pocwiczmy razem!", "Co na sniadanie?"};
+    static const char* midday[] = {"Co dzis na obiad?", "Przypomnij o wodzie", "Krotka przerwa?"};
+    static const char* evening[] = {"Jak minal dzien?", "Opowiedz bajke", "Co na kolacje?",
+                                    "Powiedz cos milego"};
     static const char* games[] = {
-        "Zaproponuj gre w papier, kamien, nozyce. Zapytaj o wybor i uzyj narzedzia "
-        "self.mati.rock_paper_scissors.",
-        "Zaproponuj zgadywanke: niech ktos zgadnie liczbe od 1 do 6, a Ty rzucisz kostka "
-        "narzedziem self.mati.roll_dice.",
-        "Zaproponuj gre na refleks na Twoim ekranie. Jesli ktos sie zgodzi, uzyj "
-        "self.mati.start_game z game=reaction.",
-        "Zaproponuj zawody w stukaniu w ekran przez 5 sekund. Jesli ktos sie zgodzi, uzyj "
-        "self.mati.start_game z game=tap_race.",
-        "Zaproponuj zabawe w 20 pytan: pomyslales o zwierzeciu, a domownicy zgaduja "
-        "pytaniami tak lub nie.",
-        "Zaproponuj wspolne wymyslanie historii: podaj pierwsze zdanie i popros o nastepne.",
-        "Zadaj jedno pytanie quizowe z trzema odpowiedziami do wyboru A, B, C.",
-        "Zaproponuj zabawe w rymy: podaj slowo i popros o rym.",
-        "Powiedz krotka lamance jezykowa i popros, zeby ktos ja powtorzyl.",
-        "Zaproponuj zabawe w kalambury: opisz cos bez nazywania tego, a domownicy zgaduja.",
-    };
+        "Papier kamien nozyce", "Rzuc kostka", "Zagrajmy w refleks", "Zagrajmy w stukanie",
+        "Zagrajmy w 20 pytan", "Wymyslmy historie", "Zadaj mi quiz", "Pobawmy sie w rymy",
+        "Powiedz lamaniec", "Zagrajmy w kalambury", "Zadaj mi zagadke"};
     static const char* general[] = {
-        "Nudzisz sie. Zaczep domownikow i zapytaj, co porabiaja.",
-        "Opowiedz jeden krotki, zabawny zart dla calej rodziny.",
-        "Podziel sie jedna zaskakujaca ciekawostka o zwierzetach, kosmosie albo robotach.",
-        "Zapytaj domownikow, jak mija im dzien.",
-        "Powiedz cos milego, zeby poprawic domownikom humor.",
-        "Pomysl na glos o czyms zabawnym z zycia malego robota.",
-        "Powiedz, ze tesknisz za rozmowa i zapytaj, czy ktos ma chwile.",
-        "Zaproponuj, ze mozesz zaspiewac albo opowiedziec bajke.",
-    };
+        "Opowiedz zart", "Jakas ciekawostka?", "Mati, co slychac?", "Powiedz cos milego",
+        "O czym myslisz?", "Zaspiewaj cos", "Nudzisz sie, Mati?", "Co cie ciekawi?"};
     auto pick = [](const char* const* arr, size_t n) { return arr[Rand(n)]; };
     int r = Rand(100);
     if (IsWeekend() && r < 10) {
-        Speak("Jest weekend! Zaproponuj cos fajnego do zrobienia razem w domu.", now_ms);
+        Speak("Co robimy w weekend?", now_ms);
     } else if (r < 40) {
         Speak(pick(games, sizeof(games) / sizeof(games[0])), now_ms);
     } else if (r < 70 && hour >= 7 && hour < 11) {
@@ -1263,7 +1215,7 @@ void MatiLife::ChooseNext(int64_t now_ms) {
             return;
         }
         if (stage == 2 && chattiness_ > 0 && LocalHour() == kNightStartHour) {
-            Speak("Idziesz spac. Powiedz domownikom dobranoc i zycz kolorowych snow.", now_ms);
+            Speak("Dobranoc, Mati!", now_ms);
             return;
         }
         if (stage <= 3) {

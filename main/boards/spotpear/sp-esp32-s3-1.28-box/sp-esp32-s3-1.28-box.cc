@@ -217,30 +217,63 @@ private:
     }
 
 
+    static void ChangeVolume(int delta) {
+        Application::GetInstance().Schedule([delta]() {
+            auto& app = Application::GetInstance();
+            auto codec = Board::GetInstance().GetAudioCodec();
+            if (!codec) return;
+            int vol = codec->output_volume() + delta;
+            vol = vol < 10 ? 10 : (vol > 100 ? 100 : vol);
+            codec->SetOutputVolume(vol);
+            char buf[32];
+            snprintf(buf, sizeof(buf), "Glosnosc %d%%", vol);
+            auto display = Board::GetInstance().GetDisplay();
+            if (display) display->ShowNotification(buf, 1500);
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+                app.PlaySound(Lang::Sounds::OGG_MATI_CHIRP);  // probka nowej glosnosci
+            }
+        });
+    }
+
     static void touchpad_timer_callback(void* arg) {
         auto* board = static_cast<Spotpear_ESP32_S3_1_28_BOX*>(arg);
         if (!board || !board->cst816d_) return;
         static bool was_touched = false;
         static bool hold_fired = false;
+        static bool moved = false;
+        static int start_x = 0, start_y = 0, last_x = 0, last_y = 0;
         static int64_t touch_start_time = 0;
         const int64_t TOUCH_THRESHOLD_MS = 500;  // krotkie stukniecie
         const int64_t HOLD_TO_TALK_MS = 700;     // przytrzymanie = rozmowa
+        const int MOVE_PX = 25;                  // ruch palca = przesuniecie, nie stukniecie
+        const int SWIPE_PX = 45;                 // przesuniecie w pionie = glosnosc
 
         board->cst816d_->UpdateTouchPoint();
         auto touch_point = board->cst816d_->GetTouchPoint();
+
+        if (touch_point.num > 0) {
+            last_x = touch_point.x;
+            last_y = touch_point.y;
+        }
 
         // 检测触摸开始
         if (touch_point.num > 0 && !was_touched) {
             was_touched = true;
             hold_fired = false;
+            moved = false;
+            start_x = touch_point.x;
+            start_y = touch_point.y;
             touch_start_time = esp_timer_get_time() / 1000; // 转换为毫秒
             MatiLife::GetInstance().NoteInteraction();
         }
         // Przytrzymanie palca w stanie bezczynnosci -> zacznij rozmowe
         else if (touch_point.num > 0 && was_touched && !hold_fired) {
+            if (abs(last_x - start_x) > MOVE_PX || abs(last_y - start_y) > MOVE_PX) {
+                moved = true;
+            }
             int64_t held = (esp_timer_get_time() / 1000) - touch_start_time;
             auto& app = Application::GetInstance();
-            if (held >= HOLD_TO_TALK_MS && app.GetDeviceState() == kDeviceStateIdle) {
+            if (!moved && held >= HOLD_TO_TALK_MS && app.GetDeviceState() == kDeviceStateIdle) {
                 hold_fired = true;
                 app.ToggleChatState();
             }
@@ -249,6 +282,15 @@ private:
         else if (touch_point.num == 0 && was_touched) {
             was_touched = false;
             int64_t touch_duration = (esp_timer_get_time() / 1000) - touch_start_time;
+            int dx = last_x - start_x;
+            int dy = last_y - start_y;
+
+            // Przesuniecie palcem w gore / w dol = glosniej / ciszej
+            if (!hold_fired && abs(dy) >= SWIPE_PX && abs(dy) > abs(dx)) {
+                ChangeVolume(dy < 0 ? 10 : -10);
+                return;
+            }
+            if (moved) return;
 
             // 只有短触才触发
             if (touch_duration < TOUCH_THRESHOLD_MS && !hold_fired) {

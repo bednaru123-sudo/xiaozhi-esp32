@@ -3,6 +3,7 @@
 #include "application.h"
 #include "assets/lang_config.h"
 #include "backlight.h"
+#include "audio_codec.h"
 #include "board.h"
 #include "display/display.h"
 #include "mcp_server.h"
@@ -494,10 +495,16 @@ void MatiLife::ShowEmotion(const char* emotion) {
 }
 
 void MatiLife::PlaySound(std::string_view sound) {
-    if (!sounds_enabled_ || IsNight()) return;
+    if (!sounds_enabled_ || IsNight()) {
+        ESP_LOGI(TAG, "Dzwiek pominiety (wylaczone=%d, noc=%d)", !sounds_enabled_, IsNight());
+        return;
+    }
     Application::GetInstance().Schedule([sound]() {
         auto& app = Application::GetInstance();
         if (app.GetDeviceState() != kDeviceStateIdle) return;
+        auto codec = Board::GetInstance().GetAudioCodec();
+        ESP_LOGI(TAG, "Dzwiek: %u B, glosnosc %d", (unsigned)sound.size(),
+                 codec ? codec->output_volume() : -1);
         app.PlaySound(sound);
     });
 }

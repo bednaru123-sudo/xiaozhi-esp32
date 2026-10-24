@@ -26,6 +26,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "power_manager.h"
+#include "mati_life.h"
+#include "lvgl_theme.h"
+#include <cstdlib>
+#include <ctime>
 
 #define TAG "Spotpear_ESP32_S3_1_28_BOX"
 
@@ -115,6 +119,16 @@ public:
                     bool mirror_y,
                     bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
+        // Mati: oczy swieca na czarnym tle niezaleznie od wybranego motywu
+        auto light = LvglThemeManager::GetInstance().GetTheme("light");
+        if (light) {
+            light->set_background_color(lv_color_hex(0x000000));
+            light->set_text_color(lv_color_hex(0xFFFFFF));
+            light->set_chat_background_color(lv_color_hex(0x000000));
+            light->set_system_bubble_color(lv_color_hex(0x000000));
+            light->set_system_text_color(lv_color_hex(0xFFFFFF));
+            light->set_border_color(lv_color_hex(0xFFFFFF));
+        }
         // Note: UI customization should be done in SetupUI(), not in constructor
         // to ensure lvgl objects are created before accessing them
     }
@@ -127,6 +141,10 @@ public:
         // 由于屏幕是圆的，所以状态栏需要增加左右内边距
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.33, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.33, 0);
+        hide_subtitle_ = true;
+        if (bottom_bar_ != nullptr) {
+            lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+        }
     }
 };
 
@@ -139,49 +157,24 @@ private:
     Display* display_ = nullptr;
     esp_timer_handle_t touchpad_timer_ = nullptr;
     Cst816d* cst816d_ = nullptr;
-    PowerSaveTimer* power_save_timer_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     PowerManager* power_manager_ = nullptr;
 
-    void InitializePowerSaveTimer() {
+    void InitializePowerHold() {
+        // GPIO3 podtrzymuje zasilanie z baterii - musi zostac w stanie wysokim.
         rtc_gpio_init(GPIO_NUM_3);
         rtc_gpio_set_direction(GPIO_NUM_3, RTC_GPIO_MODE_OUTPUT_ONLY);
         rtc_gpio_set_level(GPIO_NUM_3, 1);
-
-        power_save_timer_ = new PowerSaveTimer(-1, 60, 290);
-        power_save_timer_->OnEnterSleepMode([this]() {
-            GetDisplay()->SetPowerSaveMode(true);
-            GetBacklight()->SetBrightness(1);
-        });
-        power_save_timer_->OnExitSleepMode([this]() {
-            GetDisplay()->SetPowerSaveMode(false);
-            GetBacklight()->RestoreBrightness();
-        });
-        power_save_timer_->OnShutdownRequest([this]() {
-            ESP_LOGI(TAG, "Shutting down");
-            // 关闭ES8311音频编解码器
-            auto codec = GetAudioCodec();
-            if (codec) {
-                codec->EnableInput(false);
-                codec->EnableOutput(false);
-            }
-            rtc_gpio_set_level(GPIO_NUM_3, 0);
-            // 启用保持功能，确保睡眠期间电平不变
-            rtc_gpio_hold_en(GPIO_NUM_3);
-            esp_lcd_panel_disp_on_off(panel_, false); //关闭显示
-            esp_deep_sleep_start();
-        });
-        power_save_timer_->SetEnabled(true);
+        // Mati nie usypia ekranu ani nie wylacza sie - sam decyduje, kiedy drzemac
+        // (przyciemnia wtedy ekran). Czas lokalny: Polska.
+        setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
+        tzset();
     }
 
     void InitializePowerManager() {
         power_manager_ = new PowerManager(BATTERY_CHARGING_PIN, ADC_CHANNEL_0);
-        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
-            if (is_charging) {
-                power_save_timer_->SetEnabled(false);
-            } else {
-                power_save_timer_->SetEnabled(true);
-            }
+        power_manager_->OnChargingStatusChanged([](bool is_charging) {
+            ESP_LOGI(TAG, "Charging: %d", is_charging);
         });
     }
 
@@ -228,8 +221,10 @@ private:
         auto* board = static_cast<Spotpear_ESP32_S3_1_28_BOX*>(arg);
         if (!board || !board->cst816d_) return;
         static bool was_touched = false;
+        static bool hold_fired = false;
         static int64_t touch_start_time = 0;
-        const int64_t TOUCH_THRESHOLD_MS = 500;  // 触摸时长阈值，超过500ms视为长按
+        const int64_t TOUCH_THRESHOLD_MS = 500;  // krotkie stukniecie
+        const int64_t HOLD_TO_TALK_MS = 700;     // przytrzymanie = rozmowa
 
         board->cst816d_->UpdateTouchPoint();
         auto touch_point = board->cst816d_->GetTouchPoint();
@@ -237,7 +232,18 @@ private:
         // 检测触摸开始
         if (touch_point.num > 0 && !was_touched) {
             was_touched = true;
+            hold_fired = false;
             touch_start_time = esp_timer_get_time() / 1000; // 转换为毫秒
+            MatiLife::GetInstance().NoteInteraction();
+        }
+        // Przytrzymanie palca w stanie bezczynnosci -> zacznij rozmowe
+        else if (touch_point.num > 0 && was_touched && !hold_fired) {
+            int64_t held = (esp_timer_get_time() / 1000) - touch_start_time;
+            auto& app = Application::GetInstance();
+            if (held >= HOLD_TO_TALK_MS && app.GetDeviceState() == kDeviceStateIdle) {
+                hold_fired = true;
+                app.ToggleChatState();
+            }
         }
         // 检测触摸释放
         else if (touch_point.num == 0 && was_touched) {
@@ -245,14 +251,20 @@ private:
             int64_t touch_duration = (esp_timer_get_time() / 1000) - touch_start_time;
 
             // 只有短触才触发
-            if (touch_duration < TOUCH_THRESHOLD_MS) {
+            if (touch_duration < TOUCH_THRESHOLD_MS && !hold_fired) {
                 auto& app = Application::GetInstance();
                 // During startup (before connected), pressing touch enters Wi-Fi config mode without reboot
                 if (app.GetDeviceState() == kDeviceStateStarting) {
                     board->EnterWifiConfigMode();
                     return;
                 }
-                app.ToggleChatState();
+                if (app.GetDeviceState() == kDeviceStateIdle) {
+                    // Glaskanie Matiego
+                    MatiLife::GetInstance().OnPet();
+                } else {
+                    // W trakcie rozmowy stukniecie przerywa / konczy
+                    app.ToggleChatState();
+                }
             }
         }
     }
@@ -398,9 +410,9 @@ public:
             GetBacklight()->RestoreBrightness();
         }
 
-        // 显示和背光可用后再初始化省电逻辑，避免空指针
-        InitializePowerSaveTimer();
+        InitializePowerHold();
         InitializePowerManager();
+        MatiLife::GetInstance().Start(GetBacklight());
     }
 
     ~Spotpear_ESP32_S3_1_28_BOX() {
@@ -412,10 +424,6 @@ public:
         if (cst816d_) {
             delete cst816d_;
             cst816d_ = nullptr;
-        }
-        if (power_save_timer_) {
-            delete power_save_timer_;
-            power_save_timer_ = nullptr;
         }
         if (power_manager_) {
             delete power_manager_;
@@ -469,21 +477,13 @@ public:
             return false;
         }
         
-        static bool last_discharging = false;
         charging = power_manager_->IsCharging();
         discharging = power_manager_->IsDischarging();
-        if (discharging != last_discharging) {
-            power_save_timer_->SetEnabled(discharging);
-            last_discharging = discharging;
-        }
         level = power_manager_->GetBatteryLevel();
         return true;
     }
 
     virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
-        if (level != PowerSaveLevel::LOW_POWER) {
-            power_save_timer_->WakeUp();
-        }
         WifiBoard::SetPowerSaveLevel(level);
     }
 };

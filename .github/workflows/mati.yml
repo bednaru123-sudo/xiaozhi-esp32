@@ -1,0 +1,50 @@
+name: Build Mati (Spotpear 1.28 BOX)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - mati-alive
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Mati - wake word ${{ matrix.wake }}
+    strategy:
+      fail-fast: false
+      matrix:
+        wake: [custom, hiesp]
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v6.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build
+        shell: bash
+        run: |
+          source "$IDF_PATH/export.sh"
+          python scripts/build.py spotpear/sp-esp32-s3-1.28-box \
+            --name sp-esp32-s3-1.28-box --language pl-PL --wake-word ${{ matrix.wake }}
+
+      - name: Collect binaries
+        shell: bash
+        run: |
+          mkdir -p out
+          cp build/merged-binary.bin out/mati_full_0x0.bin
+          cp build/xiaozhi.bin out/mati_app.bin
+          cp build/generated_assets.bin out/mati_assets.bin || true
+          cp build/partition_table/partition-table.bin out/ || true
+          cp build/bootloader/bootloader.bin out/ || true
+          cp build/ota_data_initial.bin out/ || true
+          ls -la out
+
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: mati_${{ matrix.wake }}
+          path: out/
+          if-no-files-found: error

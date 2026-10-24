@@ -856,6 +856,12 @@ def get_emoji_collection_path(default_emoji_collection, noto_fonts_path, project
     """
     if not default_emoji_collection:
         return None
+
+    # Collection stored inside the project (e.g. a board's own GIF eyes)
+    if project_root:
+        local_path = os.path.join(project_root, default_emoji_collection)
+        if os.path.isdir(local_path):
+            return local_path
     
     # Special handling for otto-gif collection
     if default_emoji_collection == 'otto-gif':

@@ -353,6 +353,13 @@ def _wake_word_sdkconfig_options(
         options.append("CONFIG_WAKE_WORD_DISABLED=y")
         return normalized, options, ["CONFIG_WAKE_WORD_DISABLED"]
 
+    if normalized == "custom":
+        # MultiNet custom wake word; phrase/model come from the board's sdkconfig_append.
+        if target not in _AFE_WAKE_WORD_TARGETS:
+            raise ValueError(f"Custom wake word is not supported for target {target}")
+        options.append("CONFIG_USE_CUSTOM_WAKE_WORD=y")
+        return normalized, options, ["CONFIG_USE_CUSTOM_WAKE_WORD"]
+
     if target not in _ESP_WAKE_WORD_TARGETS | _AFE_WAKE_WORD_TARGETS:
         raise ValueError(f"Wake-word selection is not supported for target {target}")
     if not _WAKE_WORD_MODEL_PATTERN.fullmatch(normalized):

@@ -53,6 +53,10 @@ public:
     void Sleep();
     void WakeUp();
     void SetSoundsEnabled(bool on);
+    // 0 = nigdy nie zagaduje sam, 1 = rzadko, 2 = normalnie, 3 = gadula
+    void SetChattiness(int level);
+    // Natychmiastowa samodzielna wypowiedz (do testow / MCP)
+    void SayNow();
     bool SoundsEnabled() const { return sounds_enabled_; }
     std::string GetStatusJson();
 
@@ -65,6 +69,9 @@ private:
     void Loop();
     void Tick1s();
     void ChooseNext(int64_t now_ms);
+    bool MaybeSpeak(int64_t now_ms, bool force);
+    void Speak(const std::string& topic, int64_t now_ms);
+    void WatchInitiative(int64_t now_ms);
     void Begin(Activity a, int64_t now_ms, int duration_ms = 0);
     void Finish(int64_t now_ms);
     void ShowEmotion(const char* emotion);
@@ -100,4 +107,12 @@ private:
     bool forced_sleep_ = false;
     std::atomic<bool> sounds_enabled_{true};
     int song_index_ = 0;
+
+    // Samodzielne wypowiedzi przez LLM (serwer Xiaozhi)
+    int chattiness_ = 2;
+    int64_t last_speak_ms_ = 0;
+    bool initiative_active_ = false;
+    int64_t initiative_listen_since_ms_ = 0;
+    int last_greet_yday_ = -1;
+    bool say_now_ = false;
 };

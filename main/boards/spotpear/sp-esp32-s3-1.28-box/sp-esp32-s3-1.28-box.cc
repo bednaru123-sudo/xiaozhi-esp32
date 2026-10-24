@@ -259,7 +259,15 @@ private:
                     return;
                 }
                 if (app.GetDeviceState() == kDeviceStateIdle) {
-                    // Glaskanie Matiego
+                    // Glaskanie Matiego; podwojne stukniecie = Mati sam cos powie
+                    static int64_t last_tap_ms = 0;
+                    int64_t now_ms = esp_timer_get_time() / 1000;
+                    if (now_ms - last_tap_ms < 450) {
+                        last_tap_ms = 0;
+                        MatiLife::GetInstance().SayNow();
+                        return;
+                    }
+                    last_tap_ms = now_ms;
                     MatiLife::GetInstance().OnPet();
                 } else {
                     // W trakcie rozmowy stukniecie przerywa / konczy

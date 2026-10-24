@@ -106,6 +106,15 @@ void MatiLife::Start(Backlight* backlight) {
                     return true;
                 });
 
+    mcp.AddTool("self.mati.set_chattiness",
+                "Ustaw, jak czesto Mati sam z siebie zagaduje domownikow, gdy sie nudzi: "
+                "0 = nigdy, 1 = rzadko, 2 = normalnie, 3 = czesto.",
+                PropertyList({Property("level", kPropertyTypeInteger, 0, 3)}),
+                [this](const PropertyList& props) -> ToolResult {
+                    SetChattiness(props["level"].value<int>());
+                    return true;
+                });
+
     xTaskCreate(TaskEntry, "mati_life", 4096, this, 2, nullptr);
     ESP_LOGI(TAG, "Mati ozyl: energia %.0f, najedzenie %.0f, zabawa %.0f", energy_, fullness_, fun_);
 }
@@ -122,6 +131,8 @@ void MatiLife::LoadState() {
     fun_ = s.GetInt("fun", 60);
     affection_ = s.GetInt("aff", 50);
     sounds_enabled_ = s.GetBool("sounds", true);
+    chattiness_ = std::max(0, std::min(3, (int)s.GetInt("chatty", 2)));
+    last_greet_yday_ = s.GetInt("greet", -1);
 }
 
 void MatiLife::SaveState() {
@@ -130,6 +141,120 @@ void MatiLife::SaveState() {
     s.SetInt("full", static_cast<int>(fullness_));
     s.SetInt("fun", static_cast<int>(fun_));
     s.SetInt("aff", static_cast<int>(affection_));
+}
+
+void MatiLife::SetChattiness(int level) {
+    level = std::max(0, std::min(3, level));
+    xSemaphoreTake(mutex_, portMAX_DELAY);
+    chattiness_ = level;
+    xSemaphoreGive(mutex_);
+    Settings s("mati", true);
+    s.SetInt("chatty", level);
+}
+
+void MatiLife::SayNow() {
+    xSemaphoreTake(mutex_, portMAX_DELAY);
+    say_now_ = true;
+    xSemaphoreGive(mutex_);
+}
+
+void MatiLife::Speak(const std::string& topic, int64_t now_ms) {
+    // Tekst trafia do serwera jak "slowo budzace" - LLM odpowiada glosem agenta.
+    // Bez cudzyslowow i backslashy (tekst idzie wprost do JSON-a).
+    std::string text = "[Mati odzywa sie sam z siebie, nikt go nie zagadal] " + topic +
+                       " Powiedz to jednym lub dwoma krotkimi zdaniami, po swojemu, z humorem.";
+    ESP_LOGI(TAG, "Inicjatywa: %s", topic.c_str());
+    last_speak_ms_ = now_ms;
+    initiative_active_ = true;
+    initiative_listen_since_ms_ = 0;
+    activity_ = Activity::kNone;
+    Application::GetInstance().WakeWordInvoke(text);
+}
+
+bool MatiLife::MaybeSpeak(int64_t now_ms, bool force) {
+    int hour = LocalHour();
+    // Poranne powitanie raz dziennie (8-11), chwile po tym, jak nikt nic nie robi
+    if (hour >= 8 && hour < 11 && chattiness_ > 0 && now_ms - last_interaction_ms_ > 60000) {
+        time_t t = time(nullptr);
+        struct tm tm_local;
+        localtime_r(&t, &tm_local);
+        if (tm_local.tm_yday != last_greet_yday_) {
+            last_greet_yday_ = tm_local.tm_yday;
+            Settings s("mati", true);
+            s.SetInt("greet", last_greet_yday_);
+            Speak("Jest rano, wlasnie sie obudziles. Przywitaj domownikow na dzien dobry i powiedz, "
+                  "jak Ci sie spalo.",
+                  now_ms);
+            return true;
+        }
+    }
+    if (!force) {
+        if (chattiness_ <= 0) return false;
+        // tylko w dzien (gdy czas nieznany - pozwalamy)
+        if (hour >= 0 && (hour < 8 || hour >= 21)) return false;
+        static const int kIdleMin[] = {0, 45, 20, 8};
+        static const int kGapMin[] = {0, 120, 45, 15};
+        int64_t idle_for = now_ms - last_interaction_ms_;
+        int64_t since_speak = now_ms - last_speak_ms_;
+        if (idle_for < kIdleMin[chattiness_] * 60000LL) return false;
+        if (last_speak_ms_ != 0 && since_speak < kGapMin[chattiness_] * 60000LL) return false;
+        if (Rand(3) != 0) return false;  // nie zawsze od razu
+    }
+
+    if (fullness_ < 30) {
+        Speak("Jestes glodny. Popros zabawnie o ciasteczko. Gdy ktos Cie nakarmi, uzyj narzedzia "
+              "self.mati.feed.",
+              now_ms);
+        return true;
+    }
+    if (energy_ < 30) {
+        Speak("Jestes bardzo spiacy. Powiedz to i zapytaj, czy mozesz sie zdrzemnac.", now_ms);
+        return true;
+    }
+    if (fun_ < 30) {
+        Speak("Strasznie sie nudzisz. Zaproponuj wspolna zabawe, zagadke albo gre slowna.", now_ms);
+        return true;
+    }
+    if (hour >= 19 && hour < 21 && Rand(2) == 0) {
+        Speak("Zbliza sie wieczor. Powiedz cos milego i przytulnego na koniec dnia.", now_ms);
+        return true;
+    }
+    static const char* topics[] = {
+        "Nudzisz sie. Zaczep domownikow i zapytaj, co porabiaja.",
+        "Opowiedz jeden krotki, zabawny zart dla calej rodziny.",
+        "Podziel sie jedna zaskakujaca ciekawostka o zwierzetach, kosmosie albo robotach.",
+        "Zapytaj domownikow, jak mija im dzien.",
+        "Zadaj domownikom krotka, latwa zagadke do odgadniecia.",
+        "Powiedz cos milego, zeby poprawic domownikom humor.",
+        "Pomysl na glos o czyms zabawnym z zycia malego robota.",
+        "Powiedz, ze tesknisz za rozmowa i zapytaj, czy ktos ma chwile.",
+        "Zaproponuj, ze mozesz zaspiewac albo opowiedziec bajke.",
+    };
+    Speak(topics[Rand(sizeof(topics) / sizeof(topics[0]))], now_ms);
+    return true;
+}
+
+void MatiLife::WatchInitiative(int64_t now_ms) {
+    // Po wypowiedzi Mati slucha odpowiedzi. Jesli nikt nic nie powie przez ~10 s,
+    // zamykamy rozmowe, zeby nie podsluchiwac bez potrzeby.
+    if (!initiative_active_) return;
+    auto& app = Application::GetInstance();
+    auto state = app.GetDeviceState();
+    if (state == kDeviceStateListening) {
+        if (app.IsVoiceDetected()) {
+            initiative_active_ = false;  // ktos odpowiada - normalna rozmowa
+            last_interaction_ms_ = now_ms;
+            return;
+        }
+        if (initiative_listen_since_ms_ == 0) initiative_listen_since_ms_ = now_ms;
+        if (now_ms - initiative_listen_since_ms_ > 10000) {
+            ESP_LOGI(TAG, "Nikt nie odpowiedzial - koncze");
+            initiative_active_ = false;
+            app.ToggleChatState();
+        }
+    } else {
+        initiative_listen_since_ms_ = 0;
+    }
 }
 
 void MatiLife::SetSoundsEnabled(bool on) {
@@ -168,10 +293,10 @@ std::string MatiLife::GetStatusJson() {
     int h = LocalHour();
     snprintf(buf, sizeof(buf),
              "{\"nastroj\":\"%s\",\"energia\":%d,\"najedzenie\":%d,\"zabawa\":%d,\"czulosc\":%d,"
-             "\"teraz\":\"%s\",\"noc\":%s,\"dzwieki\":%s,\"godzina\":%d}",
+             "\"teraz\":\"%s\",\"noc\":%s,\"dzwieki\":%s,\"gadatliwosc\":%d,\"godzina\":%d}",
              MoodName(), (int)energy_, (int)fullness_, (int)fun_, (int)affection_,
              ActivityName(activity_), IsNight() ? "true" : "false",
-             sounds_enabled_ ? "true" : "false", h);
+             sounds_enabled_ ? "true" : "false", chattiness_, h);
     xSemaphoreGive(mutex_);
     return buf;
 }
@@ -404,7 +529,11 @@ void MatiLife::ChooseNext(int64_t now_ms) {
         Begin(Activity::kBored, now_ms);
         return;
     }
-    // 4. Zwykle zycie
+    // 4. Samodzielna wypowiedz, gdy dlugo nikt sie nie odzywa
+    if (MaybeSpeak(now_ms, false)) {
+        return;
+    }
+    // 5. Zwykle zycie
     int r = Rand(100);
     int hour = LocalHour();
     bool can_sing = now_ms - last_sing_ms_ > 20LL * 60 * 1000 && fun_ > 30 &&
@@ -474,7 +603,11 @@ void MatiLife::Loop() {
                 was_idle_ = false;
                 ApplyBrightness();
             }
-            last_interaction_ms_ = now;
+            if (initiative_active_) {
+                WatchInitiative(now);
+            } else {
+                last_interaction_ms_ = now;
+            }
             xSemaphoreGive(mutex_);
             continue;
         }
@@ -482,12 +615,16 @@ void MatiLife::Loop() {
         if (!was_idle_) {
             // Powrot do bezczynnosci (aplikacja ustawila "neutral")
             was_idle_ = true;
+            initiative_active_ = false;
             activity_ = Activity::kNone;
             next_event_ms_ = now + RandRange(2500, 6000);
             ApplyBrightness();
         }
 
-        if (pending_ != Activity::kNone) {
+        if (say_now_) {
+            say_now_ = false;
+            MaybeSpeak(now, true);
+        } else if (pending_ != Activity::kNone) {
             Activity a = pending_;
             pending_ = Activity::kNone;
             Begin(a, now);

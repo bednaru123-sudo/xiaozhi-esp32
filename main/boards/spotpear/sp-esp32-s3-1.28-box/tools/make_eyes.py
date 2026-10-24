@@ -1712,7 +1712,23 @@ def a_mirror():
         seq.append((fr, 140))
     return seq
 
+
+def a_wave_hi():
+    seq = []
+    for k in range(14):
+        a = 0.5 * math.sin(math.pi * k / 3.5)
+        fr = Frame()
+        pair(fr, dx=-14, dy=-6, arc=True, h=EH * 0.85, w=EW * 0.9)
+        cx, cy = 186, 112
+        hx, hy = cx + 26 * math.sin(a), cy - 26 * math.cos(a)
+        poly(fr, [(cx, cy + 30), (hx, hy)], CYAN, width=6)
+        blob(fr, hx, hy, 10, 10, CYAN)
+        glyph(fr, 'Czesc!', 70, 138, 16, YEL, bold=True)
+        seq.append((fr, 100))
+    return seq
+
 ANIMS = {
+    'wave_hi': a_wave_hi,
     'trampoline': a_trampoline, 'mirror': a_mirror,
     'ice_cream': a_ice_cream, 'movie': a_movie, 'piano': a_piano, 'butterfly': a_butterfly,
     'planet': a_planet, 'tea': a_tea, 'yoga': a_yoga,

@@ -7,7 +7,7 @@ on:
       - mati-alive
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -28,7 +28,8 @@ jobs:
         run: |
           source "$IDF_PATH/export.sh"
           python scripts/build.py spotpear/sp-esp32-s3-1.28-box \
-            --name sp-esp32-s3-1.28-box --language pl-PL --wake-word ${{ matrix.wake }}
+            --name sp-esp32-s3-1.28-box --language pl-PL --wake-word ${{ matrix.wake }} 2>&1 | tee build.log
+          test ${PIPESTATUS[0]} -eq 0
 
       - name: Collect binaries
         shell: bash
@@ -40,6 +41,8 @@ jobs:
           cp build/partition_table/partition-table.bin out/ || true
           cp build/bootloader/bootloader.bin out/ || true
           cp build/ota_data_initial.bin out/ || true
+          grep -iE "wake_word:|language:|multinet|wakenet|Generated|emoji|warning" build.log | head -200 > out/build_summary.txt || true
+          cp build/assets/index.json out/ 2>/dev/null || find build -name index.json -path "*assets*" -exec cp {} out/ \; || true
           ls -la out
 
       - name: Upload
@@ -48,3 +51,18 @@ jobs:
           name: mati_${{ matrix.wake }}
           path: out/
           if-no-files-found: error
+
+      - name: Publish binaries to branch mati-bin
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          for i in 1 2 3 4 5; do
+            rm -rf pub && git clone --depth 1 --branch mati-bin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" pub 2>/dev/null \
+              || (mkdir pub && cd pub && git init -q -b mati-bin && git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}")
+            rm -rf pub/${{ matrix.wake }} && mkdir -p pub/${{ matrix.wake }} && cp out/* pub/${{ matrix.wake }}/
+            cd pub && git add -A && git commit -q -m "bin ${{ matrix.wake }} ${{ github.sha }}" && git push origin mati-bin && exit 0
+            cd .. ; sleep $((RANDOM % 10 + 5))
+          done
+          exit 1

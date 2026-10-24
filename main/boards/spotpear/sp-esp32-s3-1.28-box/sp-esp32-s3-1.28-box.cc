@@ -291,6 +291,12 @@ private:
                 ChangeVolume(dy < 0 ? 10 : -10);
                 return;
             }
+            // Przesuniecie w bok = podanie Matiemu przekaski
+            if (!hold_fired && abs(dx) >= SWIPE_PX && abs(dx) > abs(dy) &&
+                Application::GetInstance().GetDeviceState() == kDeviceStateIdle) {
+                MatiLife::GetInstance().OnSwipeSide();
+                return;
+            }
             if (moved) return;
 
             // 只有短触才触发
@@ -302,16 +308,8 @@ private:
                     return;
                 }
                 if (app.GetDeviceState() == kDeviceStateIdle) {
-                    // Glaskanie Matiego; podwojne stukniecie = Mati sam cos powie
-                    static int64_t last_tap_ms = 0;
-                    int64_t now_ms = esp_timer_get_time() / 1000;
-                    if (now_ms - last_tap_ms < 450) {
-                        last_tap_ms = 0;
-                        MatiLife::GetInstance().SayNow();
-                        return;
-                    }
-                    last_tap_ms = now_ms;
-                    MatiLife::GetInstance().OnPet();
+                    // 1x glaskanie, 2x Mati cos powie, 3x laskotki, w grze - ruch w grze
+                    MatiLife::GetInstance().OnTap();
                 } else {
                     // W trakcie rozmowy stukniecie przerywa / konczy
                     app.ToggleChatState();

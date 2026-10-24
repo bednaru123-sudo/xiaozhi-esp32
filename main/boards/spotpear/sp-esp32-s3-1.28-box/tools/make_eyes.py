@@ -781,7 +781,369 @@ def a_curious():
         cur = (tx, ty)
     return seq
 
+
+# ---------- rytm dnia i gry ----------
+BROWN = (190, 120, 60)
+ORANGE = (255, 150, 40)
+RED2 = (230, 60, 60)
+
+
+def poly(fr, pts, color, width=0):
+    m = fr.mask(); d = ImageDraw.Draw(m)
+    p = [(sc(x), sc(y)) for x, y in pts]
+    if width:
+        d.line(p, fill=255, width=sc(width), joint='curve')
+    else:
+        d.polygon(p, fill=255)
+    fr.add(m, color)
+
+
+def rrect(fr, x0, y0, x1, y1, r, color, outline=0):
+    m = fr.mask(); d = ImageDraw.Draw(m)
+    if outline:
+        d.rounded_rectangle([sc(x0), sc(y0), sc(x1), sc(y1)], radius=sc(r), outline=255, width=sc(outline))
+    else:
+        d.rounded_rectangle([sc(x0), sc(y0), sc(x1), sc(y1)], radius=sc(r), fill=255)
+    fr.add(m, color)
+
+
+def steam(fr, x, y, t, color=(160, 170, 190)):
+    for i in range(3):
+        ph = (t + i / 3) % 1
+        pts = [(x - 12 + i * 12 + 4 * math.sin(6 * (ph + j / 8)), y - j * 4 - ph * 14) for j in range(6)]
+        if ph < 0.85:
+            poly(fr, pts, tuple(int(c * (1 - ph)) for c in color), width=2)
+
+
+def meal(food_fn, n=20, ms=110, chew=True):
+    seq = []
+    for k in range(n):
+        t = k / n
+        c = abs(math.sin(math.pi * k / 3)) if chew else 0
+        fr = Frame()
+        pair(fr, dy=-14 + 2 * c, arc=True, h=EH * 0.6, w=EW * 0.85)
+        food_fn(fr, t, k)
+        seq.append((fr, ms))
+    return seq
+
+
+def f_breakfast(fr, t, k):
+    rrect(fr, 72, 112, 112, 146, 8, (230, 190, 120))          # tost
+    rrect(fr, 76, 116, 108, 142, 6, (250, 225, 170))
+    blob(fr, 140, 132, 16, 11, WHITE); blob(fr, 140, 132, 7, 7, (255, 200, 40))  # jajko
+    rrect(fr, 166, 116, 188, 146, 4, (200, 90, 70)); poly(fr, [(188, 122), (196, 126), (196, 136), (188, 140)], (200, 90, 70), width=3)
+    steam(fr, 177, 110, t)
+
+
+def f_apple(fr, t, k):
+    bites = min(3, k // 6)
+    m = fr.mask(); d = ImageDraw.Draw(m)
+    d.ellipse([sc(95), sc(108), sc(131), sc(146)], fill=255)
+    for i in range(bites):
+        d.ellipse([sc(122 - i * 4), sc(110 + i * 11), sc(140 - i * 4), sc(126 + i * 11)], fill=0)
+    fr.add(m, RED2)
+    poly(fr, [(113, 110), (115, 100)], BROWN, width=3); blob(fr, 121, 103, 6, 3, GRN)
+
+
+def f_soup(fr, t, k):
+    m = fr.mask(); d = ImageDraw.Draw(m)
+    d.chord([sc(78), sc(100), sc(148), sc(160)], 0, 180, fill=255); fr.add(m, (230, 230, 240))
+    blob(fr, 113, 131, 33, 5, ORANGE)
+    sy = 120 - 18 * abs(math.sin(math.pi * t * 2))
+    poly(fr, [(150, sy - 10), (170, sy - 30)], (200, 200, 210), width=4); blob(fr, 146, sy - 6, 7, 4, (200, 200, 210))
+    steam(fr, 113, 122, t)
+
+
+def f_cake(fr, t, k):
+    poly(fr, [(90, 146), (140, 146), (140, 122), (90, 132)], (240, 200, 160))
+    poly(fr, [(90, 132), (140, 122), (140, 116), (90, 126)], PINK)
+    blob(fr, 128, 113, 6, 6, RED2)
+    if k % 6 < 3:
+        star(fr, 150, 108, 5, WHITE)
+
+
+def f_sandwich(fr, t, k):
+    rrect(fr, 80, 126, 146, 146, 8, (220, 170, 100))
+    poly(fr, [(80, 126), (146, 126)], GRN, width=5)
+    rrect(fr, 82, 116, 144, 126, 4, (255, 210, 80))
+    rrect(fr, 80, 104, 146, 118, 8, (220, 170, 100))
+
+
+def a_drink():
+    seq = []
+    for k in range(18):
+        t = k / 18
+        lvl = 1 - t * 0.8
+        fr = Frame()
+        pair(fr, dy=-16, h=EH * 0.55, w=EW * 0.85, lid=(0.3, 0.3))
+        rrect(fr, 98, 98, 128, 148, 4, (180, 220, 255), outline=2)
+        rrect(fr, 101, 148 - 46 * lvl, 125, 145, 3, (90, 170, 255))
+        if k % 4 < 2:
+            blob(fr, 113 + 3 * math.sin(k), 140 - 40 * lvl * 0.5, 2, 2, WHITE)
+        seq.append((fr, 110))
+    return seq
+
+
+def a_brush():
+    seq = []
+    for k in range(20):
+        dx = 18 * math.sin(math.pi * k / 2)
+        fr = Frame()
+        pair(fr, dy=-16, h=EH * 0.5, lid=(0.2, 0.2), w=EW * 0.85)
+        poly(fr, [(80 + dx, 126), (146 + dx, 126)], (120, 200, 255), width=6)
+        rrect(fr, 66 + dx, 118, 84 + dx, 128, 3, WHITE)
+        for i in range(4):
+            ph = (k / 20 + i / 4) % 1
+            blob(fr, 60 + i * 30 + 6 * math.sin(k + i), 140 - 30 * ph, 4 * (1 - ph) + 1, 4 * (1 - ph) + 1, (220, 240, 255))
+        seq.append((fr, 80))
+    return seq
+
+
+def a_water_plant():
+    seq = []
+    for k in range(20):
+        t = k / 20
+        fr = Frame()
+        pair(fr, dx=-14, dy=-16, h=EH * 0.6, w=EW * 0.8)
+        rrect(fr, 140, 128, 176, 150, 3, BROWN)
+        g = 1 + 0.25 * t
+        poly(fr, [(158, 128), (158, 128 - 22 * g)], GRN, width=3)
+        blob(fr, 150, 128 - 14 * g, 8 * g, 4 * g, GRN); blob(fr, 167, 128 - 20 * g, 8 * g, 4 * g, GRN)
+        rrect(fr, 92, 92, 120, 112, 5, (120, 160, 200))
+        poly(fr, [(120, 98), (138, 90)], (120, 160, 200), width=4)
+        for i in range(3):
+            ph = (t * 3 + i / 3) % 1
+            blob(fr, 140 + 6 * ph, 92 + 30 * ph, 2, 3, (90, 170, 255))
+        seq.append((fr, 100))
+    return seq
+
+
+def a_workout():
+    seq = []
+    for k in range(16):
+        up = abs(math.sin(math.pi * k / 4))
+        fr = Frame()
+        pair(fr, dy=-10 * up + 6, h=EH * (0.7 + 0.15 * up), w=EW * 0.9, lid=(0.25, 0.25))
+        y = 136 - 30 * up
+        poly(fr, [(70, y), (156, y)], (180, 180, 190), width=5)
+        for x in (66, 160):
+            rrect(fr, x - 6, y - 12, x + 6, y + 12, 3, (90, 90, 100))
+        if k % 8 == 4:
+            tear(fr, 196, 40, 5, (120, 200, 255))
+        seq.append((fr, 100))
+    return seq
+
+
+def a_sweep():
+    seq = []
+    for k in range(16):
+        sx = 20 * math.sin(math.pi * k / 4)
+        fr = Frame()
+        pair(fr, dx=sx * 0.4, dy=-14, h=EH * 0.6, w=EW * 0.85)
+        poly(fr, [(130 + sx, 92), (110 + sx, 136)], BROWN, width=4)
+        poly(fr, [(96 + sx, 136), (126 + sx, 136), (122 + sx, 150), (100 + sx, 150)], (230, 200, 90))
+        for i in range(4):
+            blob(fr, 70 + i * 28 + (k * 3 + i * 7) % 12, 146, 2, 2, (150, 150, 150))
+        seq.append((fr, 100))
+    return seq
+
+
+def a_goodnight():
+    seq = []
+    for k in range(20):
+        t = k / 20
+        f = min(1, t * 1.6)
+        fr = Frame()
+        if f < 0.95:
+            pair(fr, dy=8 * f, h=EH * 0.8, lid=(0.2 + 0.75 * f, 0.2 + 0.75 * f))
+        else:
+            line_eye(fr, LX, CY + 14, bend=-8); line_eye(fr, RX, CY + 14, bend=-8)
+        m = fr.mask(); d = ImageDraw.Draw(m)
+        d.ellipse([sc(186), sc(8), sc(214), sc(36)], fill=255); d.ellipse([sc(194), sc(4), sc(222), sc(32)], fill=0)
+        fr.add(m, (255, 230, 150))
+        for i, (x, y) in enumerate(((20, 20), (50, 36), (160, 14))):
+            star(fr, x, y, 3 + 2 * math.sin(2 * math.pi * (t + i / 3)), YEL)
+        seq.append((fr, 130))
+    return seq
+
+
+def a_sunrise():
+    seq = []
+    for k in range(18):
+        t = k / 18
+        fr = Frame()
+        sy = 150 - 50 * ease(t)
+        blob(fr, 113, sy, 26, 26, (255, 200, 60))
+        for i in range(8):
+            a = math.pi * i / 4 + t
+            poly(fr, [(113 + 32 * math.cos(a), sy + 32 * math.sin(a)), (113 + 42 * math.cos(a), sy + 42 * math.sin(a))], (255, 200, 60), width=3)
+        o = ease(min(1, t * 1.5))
+        if o < 0.2:
+            line_eye(fr, LX, CY - 20, bend=-8); line_eye(fr, RX, CY - 20, bend=-8)
+        else:
+            pair(fr, dy=-24, h=EH * 0.5 * o + 4, w=EW * 0.8)
+        seq.append((fr, 110))
+    return seq
+
+
+def a_invite():
+    seq = []
+    for k in range(16):
+        b = abs(math.sin(math.pi * k / 4))
+        fr = Frame()
+        pair(fr, dy=-8 - 6 * b, w=EW * 1.05, h=EH * 0.9, r=26)
+        glyph(fr, 'Zagramy?', 113, 136, 18, YEL, bold=True)
+        glyph(fr, '?', 206, 30 - 6 * b, 24, YEL, bold=True)
+        seq.append((fr, 90))
+    return seq
+
+
+def a_game_wait():
+    seq = []
+    for k in range(10):
+        fr = Frame()
+        pair(fr, h=EH * 0.6, lid=(0.3, 0.3), dy=-6)
+        blob(fr, 113, 134, 10 + (k % 2), 10 + (k % 2), RED2)
+        glyph(fr, 'czekaj...', 113, 18, 14, WHITE)
+        seq.append((fr, 120))
+    return seq
+
+
+def a_game_go():
+    seq = []
+    for k in range(6):
+        fr = Frame()
+        pair(fr, w=EW * 1.1, h=EH * 1.1, r=30, dy=-10, color=GRN)
+        glyph(fr, 'TERAZ!', 113, 136, 22 + (k % 2) * 2, GRN, bold=True)
+        seq.append((fr, 80))
+    return seq
+
+
+def a_game_tap():
+    seq = []
+    for k in range(8):
+        fr = Frame()
+        pair(fr, dx=6 * math.sin(math.pi * k / 2), h=EH * 0.85, dy=-8)
+        glyph(fr, 'STUKAJ!', 113, 136, 20, ORANGE, bold=True)
+        seq.append((fr, 70))
+    return seq
+
+
+def a_tickle():
+    seq = []
+    for k in range(12):
+        sx = 5 * math.sin(math.pi * k / 1.5)
+        fr = Frame()
+        line_eye(fr, LX + sx, CY, bend=16); line_eye(fr, RX + sx, CY, bend=16)
+        blob(fr, LX - 14, CY + 36, 15, 6, PINK); blob(fr, RX + 14, CY + 36, 15, 6, PINK)
+        glyph(fr, 'hihi', 40 + 4 * sx, 30, 16, YEL, bold=True); glyph(fr, 'haha', 180 - 4 * sx, 128, 16, YEL, bold=True)
+        seq.append((fr, 70))
+    return seq
+
+
+def a_no_thanks():
+    seq = []
+    for k in range(14):
+        sx = 16 * math.sin(math.pi * k / 3.5) if k < 10 else 0
+        fr = Frame()
+        pair(fr, dx=sx, h=EH * 0.7, lid=(0.35, 0.35))
+        glyph(fr, 'nie, dzieki', 113, 140, 14, WHITE)
+        seq.append((fr, 80 if k < 10 else 250))
+    return seq
+
+
+def dice_face(n):
+    pips = {1: [(0, 0)], 2: [(-1, -1), (1, 1)], 3: [(-1, -1), (0, 0), (1, 1)], 4: [(-1, -1), (1, -1), (-1, 1), (1, 1)],
+            5: [(-1, -1), (1, -1), (0, 0), (-1, 1), (1, 1)], 6: [(-1, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (1, 1)]}
+    def f():
+        seq = []
+        for k in range(8):
+            fr = Frame()
+            rot = 0 if k > 2 else (3 - k) * 6
+            rrect(fr, 73 + rot, 35, 153 - rot, 115, 14, WHITE)
+            for px, py in pips[n]:
+                blob(fr, 113 + px * 22, 75 + py * 22, 8, 8, (30, 30, 40))
+            glyph(fr, str(n), 113, 136, 18, YEL, bold=True)
+            seq.append((fr, 60 if k < 3 else 400))
+        return seq
+    return f
+
+
+def coin(side):
+    def f():
+        seq = []
+        for k in range(10):
+            fr = Frame()
+            w = 44 * abs(math.cos(math.pi * k / 4)) if k < 6 else 44
+            blob(fr, 113, 70, max(3, w), 44, (240, 200, 70))
+            if k >= 6:
+                glyph(fr, 'O' if side == 'heads' else '1', 113, 70, 40, (150, 110, 20), bold=True)
+                glyph(fr, 'ORZEL' if side == 'heads' else 'RESZKA', 113, 136, 18, YEL, bold=True)
+            seq.append((fr, 70 if k < 6 else 400))
+        return seq
+    return f
+
+
+def rps(kind):
+    def f():
+        seq = []
+        for k in range(8):
+            fr = Frame()
+            bob = 6 * abs(math.sin(math.pi * k / 2)) if k < 4 else 0
+            if kind == 'rock':
+                blob(fr, 113, 72 - bob, 34, 30, (160, 160, 170)); blob(fr, 100, 64 - bob, 8, 6, (200, 200, 210))
+                label = 'KAMIEN'
+            elif kind == 'paper':
+                rrect(fr, 83, 34 - bob, 143, 110 - bob, 4, WHITE)
+                for i in range(4):
+                    poly(fr, [(92, 50 + i * 14 - bob), (134, 50 + i * 14 - bob)], (150, 150, 170), width=2)
+                label = 'PAPIER'
+            else:
+                for a in (-0.5, 0.5):
+                    poly(fr, [(113, 80 - bob), (113 + 50 * math.sin(a), 80 - 50 * math.cos(a) - bob)], (200, 210, 220), width=6)
+                for x in (96, 130):
+                    m = fr.mask(); ImageDraw.Draw(m).ellipse([sc(x - 11), sc(88 - bob), sc(x + 11), sc(110 - bob)], outline=255, width=sc(4)); fr.add(m, RED2)
+                label = 'NOZYCE'
+            glyph(fr, label, 113, 136, 18, YEL, bold=True)
+            seq.append((fr, 80 if k < 4 else 400))
+        return seq
+    return f
+
+
+def a_trophy():
+    seq = []
+    for k in range(12):
+        fr = Frame()
+        pair(fr, dy=-20, arc=True, h=EH * 0.6, w=EW * 0.85)
+        poly(fr, [(96, 96), (130, 96), (126, 120), (100, 120)], (255, 200, 50))
+        rrect(fr, 106, 120, 120, 132, 2, (255, 200, 50)); rrect(fr, 98, 132, 128, 140, 2, (200, 150, 40))
+        star(fr, 60 + (k * 13) % 110, 20 + (k * 7) % 30, 5, WHITE); star(fr, 180 - (k * 11) % 120, 30, 4, YEL)
+        glyph(fr, 'REKORD!', 113, 18 if k % 2 else 20, 14, YEL, bold=True)
+        seq.append((fr, 90))
+    return seq
+
+
+def a_party():
+    seq = []
+    cols = [PINK, YEL, GRN, (120, 160, 255), ORANGE]
+    for k in range(16):
+        fr = Frame()
+        pair(fr, dx=12 * math.sin(math.pi * k / 4), dy=-6 * abs(math.sin(math.pi * k / 2)), arc=True, h=EH * 0.85, color=cols[k % 5])
+        for i in range(6):
+            blob(fr, 20 + i * 38, 140 - ((k * 9 + i * 23) % 40), 3, 3, cols[(k + i) % 5])
+        seq.append((fr, 90))
+    return seq
+
 ANIMS = {
+    'breakfast': lambda: meal(f_breakfast), 'snack_apple': lambda: meal(f_apple, n=18),
+    'lunch': lambda: meal(f_soup), 'cake': lambda: meal(f_cake, n=16), 'supper': lambda: meal(f_sandwich, n=18),
+    'drink': a_drink, 'brush_teeth': a_brush, 'water_plant': a_water_plant, 'workout': a_workout,
+    'sweep': a_sweep, 'goodnight': a_goodnight, 'sunrise': a_sunrise, 'invite': a_invite,
+    'game_wait': a_game_wait, 'game_go': a_game_go, 'game_tap': a_game_tap, 'tickle': a_tickle,
+    'no_thanks': a_no_thanks, 'trophy': a_trophy, 'party': a_party,
+    'dice_1': dice_face(1), 'dice_2': dice_face(2), 'dice_3': dice_face(3), 'dice_4': dice_face(4),
+    'dice_5': dice_face(5), 'dice_6': dice_face(6), 'coin_heads': coin('heads'), 'coin_tails': coin('tails'),
+    'rps_rock': rps('rock'), 'rps_paper': rps('paper'), 'rps_scissors': rps('scissors'),
     'dance': a_dance, 'sneeze': a_sneeze, 'hiccup': a_hiccup, 'daydream': a_daydream,
     'stretch': a_stretch, 'read': a_read, 'peekaboo': a_peekaboo, 'chase_fly': a_chase_fly,
     'dizzy': a_dizzy, 'whistle': a_whistle, 'meditate': a_meditate, 'doze': a_doze,
